@@ -110,6 +110,11 @@ class Disciple_Tools_Homescreen_Apps {
         // require_once( 'magic-link/post-type-magic-link/magic-link-post-type.php' );
         // require_once( 'magic-link/magic-link-user-app.php' );
         require_once( 'magic-link/create-contact.php' );
+        require_once( 'magic-link/create-group.php' );
+        require_once( 'magic-link/link-bible.php' );
+        require_once( 'magic-link/link-zume.php' );
+        require_once( 'magic-link/link-waha.php' );
+        require_once( 'magic-link/my-coaching.php' );
         // require_once( 'magic-link/magic-link-non-object.php' );
         // require_once( 'magic-link/templates/starter-template.php' );
 //        require_once( 'magic-link/magic-link-home.php' );

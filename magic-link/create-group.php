@@ -4,17 +4,17 @@ if ( ! defined( 'ABSPATH' ) ) {
 } // Exit if accessed directly.
 
 /**
- * Class Disciple_Tools_Homescreen_Apps_Create_Contact_Magic_Link
+ * Class Disciple_Tools_Homescreen_Apps_Create_Group_Magic_Link
  */
-class Disciple_Tools_Homescreen_Apps_Create_Contact_Magic_Link {
+class Disciple_Tools_Homescreen_Apps_Create_Group_Magic_Link {
 
-    public $page_title = 'Create Contact';
+    public $page_title = 'Create Group';
     public $root = "homescreen_apps";
-    public $type = 'create_contact';
-    public $type_name = 'Create Contact';
-    public $post_type = 'contacts';
+    public $type = 'create_group';
+    public $type_name = 'Create Group';
+    public $post_type = 'groups';
     public $type_actions = [
-        '' => "Create Contact",
+        '' => "Create Group",
     ];
 
     private static $_instance = null;
@@ -33,23 +33,20 @@ class Disciple_Tools_Homescreen_Apps_Create_Contact_Magic_Link {
      * Register the template configuration
      */
     public function register_template( array $templates ) : array {
-        if ( ! isset( $templates['contacts'] ) ) {
-            $templates['contacts'] = [];
+        if ( ! isset( $templates['groups'] ) ) {
+            $templates['groups'] = [];
         }
 
-        $templates['contacts']['templates_create_contact'] = [
-            'id' => 'templates_create_contact',
+        $templates['groups']['templates_create_group'] = [
+            'id' => 'templates_create_group',
             'enabled' => true,
-            'name' => 'Create Contact',
-            'title' => 'Create New Contact',
+            'name' => 'Create Group',
+            'title' => 'Create New Group',
             'title_translations' => [],
             'type' => 'create-record',
-            'post_type' => 'contacts',
-            'record_type' => 'contacts',
-            'message' => 'Use this form to create a new contact record.',
-            'meta' => [
-                'show_in_home_apps' => true,
-            ],
+            'post_type' => 'groups',
+            'record_type' => 'groups',
+            'message' => 'Use this form to create a new group record.',
             'fields' => [
                 [
                     'id' => 'name',
@@ -59,24 +56,24 @@ class Disciple_Tools_Homescreen_Apps_Create_Contact_Magic_Link {
                     'translations' => []
                 ],
                 [
-                    'id' => 'contact_email',
+                    'id' => 'group_type',
                     'type' => 'dt',
                     'enabled' => true,
-                    'label' => 'Contact Email',
+                    'label' => 'Group Type',
                     'translations' => []
                 ],
                 [
-                    'id' => 'seeker_path',
+                    'id' => 'group_status',
                     'type' => 'dt',
                     'enabled' => true,
-                    'label' => 'Seeker Path',
+                    'label' => 'Group Status',
                     'translations' => []
                 ],
                 [
-                    'id' => 'milestones',
+                    'id' => 'member_count',
                     'type' => 'dt',
                     'enabled' => true,
-                    'label' => 'Milestones',
+                    'label' => 'Member Count',
                     'translations' => []
                 ]
             ],
@@ -90,4 +87,4 @@ class Disciple_Tools_Homescreen_Apps_Create_Contact_Magic_Link {
 }
 
 // Initialize the magic link
-Disciple_Tools_Homescreen_Apps_Create_Contact_Magic_Link::instance();
+Disciple_Tools_Homescreen_Apps_Create_Group_Magic_Link::instance(); 
