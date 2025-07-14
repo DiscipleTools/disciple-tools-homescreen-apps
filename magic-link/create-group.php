@@ -9,12 +9,12 @@ if ( ! defined( 'ABSPATH' ) ) {
 class Disciple_Tools_Homescreen_Apps_Create_Group_Magic_Link {
 
     public $page_title = 'Create Group';
-    public $root = "homescreen_apps";
+    public $root = 'homescreen_apps';
     public $type = 'create_group';
     public $type_name = 'Create Group';
     public $post_type = 'groups';
     public $type_actions = [
-        '' => "Create Group",
+        '' => 'Create Group',
     ];
 
     private static $_instance = null;
@@ -47,6 +47,7 @@ class Disciple_Tools_Homescreen_Apps_Create_Group_Magic_Link {
             'post_type' => 'groups',
             'record_type' => 'groups',
             'message' => 'Use this form to create a new group record.',
+            'icon' => 'mdi mdi-home-group-plus',
             'fields' => [
                 [
                     'id' => 'name',
@@ -87,4 +88,4 @@ class Disciple_Tools_Homescreen_Apps_Create_Group_Magic_Link {
 }
 
 // Initialize the magic link
-Disciple_Tools_Homescreen_Apps_Create_Group_Magic_Link::instance(); 
+Disciple_Tools_Homescreen_Apps_Create_Group_Magic_Link::instance();

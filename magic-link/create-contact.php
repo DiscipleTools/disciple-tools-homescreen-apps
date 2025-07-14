@@ -47,9 +47,7 @@ class Disciple_Tools_Homescreen_Apps_Create_Contact_Magic_Link {
             'post_type' => 'contacts',
             'record_type' => 'contacts',
             'message' => 'Use this form to create a new contact record.',
-            'meta' => [
-                'show_in_home_apps' => true,
-            ],
+            'icon' => 'mdi mdi-account-plus',
             'fields' => [
                 [
                     'id' => 'name',
