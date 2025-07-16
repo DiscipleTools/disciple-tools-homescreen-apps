@@ -48,3 +48,8 @@ in the [Discussions](https://github.com/DiscipleTools/disciple-tools-homescreen-
 code contributions are welcome using the [Pull Request](https://github.com/DiscipleTools/disciple-tools-homescreen-apps/pulls)
 system for git. For a more details on contribution see the
 [contribution guidelines](https://github.com/DiscipleTools/disciple-tools-homescreen-apps/blob/master/CONTRIBUTING.md).
+
+## Screenshot
+<img width="622" height="1382" alt="image" src="https://github.com/user-attachments/assets/34108cce-beae-4664-bd68-cb9a5e4e6e62" />
+
+
