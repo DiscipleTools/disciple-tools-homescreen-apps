@@ -12,7 +12,7 @@ class Disciple_Tools_Homescreen_Apps_Dispatcher_Contacts_Magic_Link {
     public $root = "homescreen_apps";
     public $type = 'dispatcher_contacts';
     public $type_name = 'Dispatcher Contacts';
-    public $post_type = 'contacts';
+    public $post_type = 'user';
     public $record_post_type = 'contacts';
     public $type_actions = [
         '' => "Dispatcher Contacts",
@@ -63,12 +63,12 @@ class Disciple_Tools_Homescreen_Apps_Dispatcher_Contacts_Magic_Link {
             'name' => 'Dispatcher Contacts',
             'title' => 'Dispatch Needed Contacts',
             'title_translations' => [],
-            'type' => 'post-connections',
+            'type' => 'list-template',
             'post_type' => 'contacts',
             'record_type' => 'contacts',
             'message' => 'View and manage contacts that need to be dispatched.',
-            'connection_fields' => [
-                'subassigned'
+            'query' => [
+                'overall_status' => [ 'unassigned' ]
             ],
             'fields' => [
                 [
