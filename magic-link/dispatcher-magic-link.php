@@ -291,13 +291,37 @@ class Disciple_Tools_Homescreen_Apps_Dispatcher_Magic_Link extends DT_Magic_Url_
             $age_days = floor( ( time() - $contact['post_date']['timestamp'] ) / 86400 );
         }
 
+        // Extract location grid IDs for matching
+        $location_ids = [];
+        if ( ! empty( $contact['location_grid'] ) ) {
+            foreach ( $contact['location_grid'] as $loc ) {
+                if ( isset( $loc['id'] ) ) {
+                    $location_ids[] = $loc['id'];
+                }
+            }
+        }
+
+        // Extract language keys for matching
+        $language_keys = [];
+        if ( ! empty( $contact['languages'] ) ) {
+            foreach ( $contact['languages'] as $lang ) {
+                if ( is_string( $lang ) ) {
+                    $language_keys[] = $lang;
+                } elseif ( isset( $lang['key'] ) ) {
+                    $language_keys[] = $lang['key'];
+                }
+            }
+        }
+
         return [
-            'ID'        => $contact['ID'],
-            'name'      => $contact['name'] ?? 'Unknown',
-            'tiles'     => $tiles,
-            'age_days'  => $age_days,
-            'created'   => $contact['post_date']['formatted'] ?? '',
-            'comments'  => $comments['comments'] ?? [],
+            'ID'           => $contact['ID'],
+            'name'         => $contact['name'] ?? 'Unknown',
+            'tiles'        => $tiles,
+            'age_days'     => $age_days,
+            'created'      => $contact['post_date']['formatted'] ?? '',
+            'comments'     => $comments['comments'] ?? [],
+            'location_ids' => $location_ids,
+            'languages'    => $language_keys,
         ];
     }
 
@@ -424,11 +448,21 @@ class Disciple_Tools_Homescreen_Apps_Dispatcher_Magic_Link extends DT_Magic_Url_
             wp_set_current_user( $params['parts']['post_id'] );
         }
 
+        // Get contact location and language data for matching
+        $contact_location_ids = $params['contact_location_ids'] ?? [];
+        $contact_languages = $params['contact_languages'] ?? [];
+
         // Use DT_User_Management if available, otherwise query directly
         if ( class_exists( 'DT_User_Management' ) ) {
             $users_data = DT_User_Management::get_users( false );
         } else {
             $users_data = $this->get_users_fallback();
+        }
+
+        // Get location proximity data if contact has locations
+        $location_data = [];
+        if ( ! empty( $contact_location_ids ) ) {
+            $location_data = $this->get_location_proximity_data( $contact_location_ids );
         }
 
         $result = [];
@@ -452,20 +486,61 @@ class Disciple_Tools_Homescreen_Apps_Dispatcher_Magic_Link extends DT_Magic_Url_
                 }
             }
 
+            // Get user languages
+            $user_languages = get_user_option( 'user_languages', $user_id );
+            if ( ! is_array( $user_languages ) ) {
+                $user_languages = [];
+            }
+
+            // Check for language match
+            $language_match = false;
+            if ( ! empty( $contact_languages ) && ! empty( $user_languages ) ) {
+                $language_match = count( array_intersect( $contact_languages, $user_languages ) ) > 0;
+            }
+
+            // Check for location match
+            $location_match = false;
+            $location_level = null;
+            $best_location_match = '';
+            if ( isset( $location_data[ $user_id ] ) ) {
+                $location_match = true;
+                $location_level = $location_data[ $user_id ]['level'];
+                $best_location_match = $location_data[ $user_id ]['match_name'];
+            }
+
+            // Calculate match score (lower is better)
+            // Location exact match = 0, parent = 1, etc. No match = 100
+            // Language match subtracts 50 from score
+            $match_score = 100;
+            if ( $location_match ) {
+                $match_score = $location_level;
+            }
+            if ( $language_match ) {
+                $match_score -= 50;
+            }
+
             $result[] = [
-                'ID'               => intval( $user_id ),
-                'display_name'     => $user['display_name'] ?? 'Unknown',
-                'user_status'      => $user_status,
-                'workload_status'  => $workload_status,
-                'locations'        => $locations,
-                'active_contacts'  => intval( $user['number_active'] ?? 0 ),
-                'assigned_contacts' => intval( $user['number_assigned_to'] ?? 0 ),
-                'pending_contacts' => intval( $user['number_new_assigned'] ?? 0 ),
+                'ID'                  => intval( $user_id ),
+                'display_name'        => $user['display_name'] ?? 'Unknown',
+                'user_status'         => $user_status,
+                'workload_status'     => $workload_status,
+                'locations'           => $locations,
+                'active_contacts'     => intval( $user['number_active'] ?? 0 ),
+                'assigned_contacts'   => intval( $user['number_assigned_to'] ?? 0 ),
+                'pending_contacts'    => intval( $user['number_new_assigned'] ?? 0 ),
+                'language_match'      => $language_match,
+                'location_match'      => $location_match,
+                'location_level'      => $location_level,
+                'best_location_match' => $best_location_match,
+                'match_score'         => $match_score,
             ];
         }
 
-        // Sort by workload (fewer active contacts first)
+        // Sort by match score first (lower is better), then by active contacts
         usort( $result, function( $a, $b ) {
+            if ( $a['match_score'] !== $b['match_score'] ) {
+                return $a['match_score'] - $b['match_score'];
+            }
             return $a['active_contacts'] - $b['active_contacts'];
         });
 
@@ -473,6 +548,81 @@ class Disciple_Tools_Homescreen_Apps_Dispatcher_Magic_Link extends DT_Magic_Url_
             'users' => $result,
             'total' => count( $result ),
         ];
+    }
+
+    /**
+     * Calculate location proximity data for users based on contact locations
+     * Adapted from DT_Contacts_Access::get_location_data()
+     */
+    private function get_location_proximity_data( $location_ids ) {
+        global $wpdb;
+        $location_data = [];
+
+        foreach ( $location_ids as $grid_id ) {
+            $location = $wpdb->get_row( $wpdb->prepare(
+                "SELECT * FROM $wpdb->dt_location_grid WHERE grid_id = %s",
+                esc_sql( $grid_id )
+            ), ARRAY_A );
+
+            if ( ! $location ) {
+                continue;
+            }
+
+            $levels = [];
+
+            if ( $grid_id === '1' ) {
+                $match_location_ids = '( 1 )';
+            } else {
+                $match_location_ids = '( ';
+                for ( $i = 0; $i <= ( (int) $location['level'] ); $i++ ) {
+                    $admin_key = 'admin' . $i . '_grid_id';
+                    if ( isset( $location[ $admin_key ] ) ) {
+                        $levels[ $location[ $admin_key ] ] = [ 'level' => $i ];
+                        $match_location_ids .= $location[ $admin_key ] . ', ';
+                    }
+                }
+                $match_location_ids .= ')';
+            }
+
+            $match_location_ids = str_replace( ', )', ' )', $match_location_ids );
+
+            // Get location names
+            //phpcs:disable
+            $location_names = $wpdb->get_results( "
+                SELECT alt_name, grid_id
+                FROM $wpdb->dt_location_grid
+                WHERE grid_id IN $match_location_ids
+            ", ARRAY_A );
+
+            // Get users with matching locations
+            $users_in_location = $wpdb->get_results( $wpdb->prepare( "
+                SELECT user_id, meta_value as grid_id
+                FROM $wpdb->usermeta um
+                WHERE um.meta_key = %s
+                AND um.meta_value IN $match_location_ids
+            ", $wpdb->prefix . 'location_grid' ), ARRAY_A );
+            //phpcs:enable
+
+            foreach ( $location_names as $l ) {
+                if ( isset( $levels[ $l['grid_id'] ] ) ) {
+                    $levels[ $l['grid_id'] ]['name'] = $l['alt_name'];
+                }
+            }
+
+            // Calculate proximity level for each user
+            // 0 = exact match, 1 = parent match, etc.
+            foreach ( $users_in_location as $l ) {
+                $level = (int) $location['level'] - $levels[ $l['grid_id'] ]['level'];
+                if ( ! isset( $location_data[ $l['user_id'] ] ) || $location_data[ $l['user_id'] ]['level'] > $level ) {
+                    $location_data[ $l['user_id'] ] = [
+                        'level'      => $level,
+                        'match_name' => $levels[ $l['grid_id'] ]['name'] ?? '',
+                    ];
+                }
+            }
+        }
+
+        return $location_data;
     }
 
     /**
@@ -763,16 +913,17 @@ class Disciple_Tools_Homescreen_Apps_Dispatcher_Magic_Link extends DT_Magic_Url_
                 gap: 8px;
             }
 
-            .status-dot {
-                width: 10px;
-                height: 10px;
-                border-radius: 50%;
+            .status-badge {
                 display: inline-block;
+                padding: 2px 8px;
+                border-radius: 10px;
+                font-size: 11px;
+                font-weight: 500;
             }
 
-            .status-dot.active { background: var(--success-color); }
-            .status-dot.away { background: var(--warning-color); }
-            .status-dot.inactive { background: #9e9e9e; }
+            .status-badge.away { background: #fff3e0; color: #ef6c00; }
+            .status-badge.inconsistent { background: #fce4ec; color: #c2185b; }
+            .status-badge.inactive { background: #eeeeee; color: #616161; }
 
             .workload-badge {
                 display: inline-block;
@@ -785,6 +936,38 @@ class Disciple_Tools_Homescreen_Apps_Dispatcher_Magic_Link extends DT_Magic_Url_
             .workload-badge.green { background: #e8f5e9; color: #2e7d32; }
             .workload-badge.yellow { background: #fff3e0; color: #ef6c00; }
             .workload-badge.red { background: #ffebee; color: #c62828; }
+
+            .match-badges {
+                display: flex;
+                gap: 6px;
+                margin-top: 6px;
+                flex-wrap: wrap;
+            }
+
+            .match-badge {
+                display: inline-flex;
+                align-items: center;
+                gap: 4px;
+                padding: 3px 8px;
+                border-radius: 12px;
+                font-size: 11px;
+                font-weight: 500;
+            }
+
+            .match-badge.location {
+                background: #e3f2fd;
+                color: #1565c0;
+            }
+
+            .match-badge.location.exact {
+                background: #c8e6c9;
+                color: #2e7d32;
+            }
+
+            .match-badge.language {
+                background: #f3e5f5;
+                color: #7b1fa2;
+            }
 
             .user-stats {
                 display: flex;
@@ -947,9 +1130,9 @@ class Disciple_Tools_Homescreen_Apps_Dispatcher_Magic_Link extends DT_Magic_Url_
                     <input type="text" id="user-search" placeholder="Search multipliers..." oninput="filterUsers(this.value)">
                 </div>
                 <div class="panel-content" id="users-list">
-                    <div class="loading">
-                        <div class="loading-spinner" style="margin: 0 auto;"></div>
-                        <p>Loading users...</p>
+                    <div class="empty-state">
+                        <div class="empty-state-icon">👉</div>
+                        <p>Select a contact to see matching multipliers</p>
                     </div>
                 </div>
             </div>
@@ -1004,13 +1187,14 @@ class Disciple_Tools_Homescreen_Apps_Dispatcher_Magic_Link extends DT_Magic_Url_
             };
 
             let selectedContactId = null;
+            let selectedContactLocationIds = [];
+            let selectedContactLanguages = [];
             let contacts = [];
             let users = [];
 
             // Initialize
             document.addEventListener('DOMContentLoaded', function() {
                 loadContacts();
-                loadUsers();
             });
 
             // Load unassigned contacts
@@ -1039,8 +1223,12 @@ class Disciple_Tools_Homescreen_Apps_Dispatcher_Magic_Link extends DT_Magic_Url_
                 }
             }
 
-            // Load users with workload
-            async function loadUsers() {
+            // Load users with workload (pass contact data for matching)
+            async function loadUsers(contactLocationIds = [], contactLanguages = []) {
+                // Show loading spinner
+                document.getElementById('users-list').innerHTML =
+                    '<div class="loading"><div class="loading-spinner" style="margin: 0 auto;"></div><p>Finding matching multipliers...</p></div>';
+
                 try {
                     const response = await fetch(
                         `${dispatcherApp.root}${dispatcherApp.parts.root}/v1/${dispatcherApp.parts.type}/users`,
@@ -1051,13 +1239,16 @@ class Disciple_Tools_Homescreen_Apps_Dispatcher_Magic_Link extends DT_Magic_Url_
                                 'X-WP-Nonce': dispatcherApp.nonce
                             },
                             body: JSON.stringify({
-                                parts: dispatcherApp.parts
+                                parts: dispatcherApp.parts,
+                                contact_location_ids: contactLocationIds,
+                                contact_languages: contactLanguages
                             })
                         }
                     );
                     const data = await response.json();
                     users = data.users || [];
-                    renderUsers();
+                    const searchTerm = document.getElementById('user-search').value;
+                    renderUsers(searchTerm);
                 } catch (error) {
                     console.error('Error loading users:', error);
                     document.getElementById('users-list').innerHTML =
@@ -1128,16 +1319,39 @@ class Disciple_Tools_Homescreen_Apps_Dispatcher_Magic_Link extends DT_Magic_Url_
                 }
 
                 container.innerHTML = filteredUsers.map(user => {
-                    const statusClass = user.user_status === 'active' ? 'active' :
-                                       user.user_status === 'away' ? 'away' : 'inactive';
+                    // Only show user status if not active and not empty
+                    const userStatusClass = user.user_status === 'away' ? 'away' :
+                                           user.user_status === 'inconsistent' ? 'inconsistent' :
+                                           user.user_status === 'inactive' ? 'inactive' : '';
 
-                    const workloadClass = user.workload_status === 'busyness' ||
-                                          user.active_contacts >= 20 ? 'red' :
-                                          user.workload_status === 'accepting' ||
-                                          user.active_contacts < 10 ? 'green' : 'yellow';
+                    const userStatusText = user.user_status === 'away' ? 'Away' :
+                                          user.user_status === 'inconsistent' ? 'Inconsistent' :
+                                          user.user_status === 'inactive' ? 'Inactive' : '';
 
-                    const workloadText = user.workload_status === 'busyness' ? 'Busy' :
-                                        user.workload_status === 'accepting' ? 'Accepting' : 'Normal';
+                    const workloadClass = user.workload_status === 'too_many' ? 'red' :
+                                          user.workload_status === 'existing' ? 'yellow' :
+                                          user.workload_status === 'active' ? 'green' : '';
+
+                    const workloadText = user.workload_status === 'too_many' ? 'Too Many' :
+                                        user.workload_status === 'existing' ? 'Existing Only' :
+                                        user.workload_status === 'active' ? 'Accepting' : '';
+
+                    // Build match badges HTML
+                    let matchBadgesHtml = '';
+                    if (user.location_match || user.language_match) {
+                        let badges = [];
+                        if (user.location_match) {
+                            const isExact = user.location_level === 0;
+                            const locationText = user.best_location_match
+                                ? (isExact ? 'Exact: ' : 'Near: ') + escapeHtml(user.best_location_match)
+                                : (isExact ? 'Exact match' : 'Location match');
+                            badges.push(`<span class="match-badge location ${isExact ? 'exact' : ''}">📍 ${locationText}</span>`);
+                        }
+                        if (user.language_match) {
+                            badges.push(`<span class="match-badge language">🗣️ Language match</span>`);
+                        }
+                        matchBadgesHtml = `<div class="match-badges">${badges.join('')}</div>`;
+                    }
 
                     return `
                         <div class="user-card"
@@ -1146,10 +1360,11 @@ class Disciple_Tools_Homescreen_Apps_Dispatcher_Magic_Link extends DT_Magic_Url_
                              ondragleave="handleDragLeave(event)"
                              ondrop="handleDrop(event, ${user.ID})">
                             <div class="user-name">
-                                <span class="status-dot ${statusClass}"></span>
                                 ${escapeHtml(user.display_name)}
-                                <span class="workload-badge ${workloadClass}">${workloadText}</span>
+                                ${userStatusText ? `<span class="status-badge ${userStatusClass}">${userStatusText}</span>` : ''}
+                                ${workloadText ? `<span class="workload-badge ${workloadClass}">${workloadText}</span>` : ''}
                             </div>
+                            ${matchBadgesHtml}
                             <div class="user-stats">
                                 <span>Active: ${user.active_contacts}</span>
                                 <span>Assigned: ${user.assigned_contacts}</span>
@@ -1193,10 +1408,6 @@ class Disciple_Tools_Homescreen_Apps_Dispatcher_Magic_Link extends DT_Magic_Url_
                     el.classList.toggle('selected', parseInt(el.dataset.contactId) === contactId);
                 });
 
-                // Re-render users to enable assign buttons
-                const searchTerm = document.getElementById('user-search').value;
-                renderUsers(searchTerm);
-
                 // Show/update the "Open in D.T." button
                 const openDtBtn = document.getElementById('open-in-dt-btn');
                 openDtBtn.href = `${dispatcherApp.site_url}/contacts/${contactId}`;
@@ -1223,6 +1434,13 @@ class Disciple_Tools_Homescreen_Apps_Dispatcher_Magic_Link extends DT_Magic_Url_
                     );
                     const contact = await response.json();
                     renderContactDetails(contact);
+
+                    // Store contact's location and language data for user matching
+                    selectedContactLocationIds = contact.location_ids || [];
+                    selectedContactLanguages = contact.languages || [];
+
+                    // Reload users with contact data to calculate matches
+                    loadUsers(selectedContactLocationIds, selectedContactLanguages);
                 } catch (error) {
                     console.error('Error loading contact details:', error);
                     detailsContainer.innerHTML = '<div class="empty-state"><p>Error loading details</p></div>';
@@ -1347,12 +1565,18 @@ class Disciple_Tools_Homescreen_Apps_Dispatcher_Magic_Link extends DT_Magic_Url_
                         contacts = contacts.filter(c => parseInt(c.ID) !== contactId);
                         renderContacts();
 
-                        // Clear details if this was the selected contact
+                        // Clear details and users list if this was the selected contact
                         if (parseInt(selectedContactId) === contactId) {
                             document.getElementById('contact-details').innerHTML =
                                 '<div class="empty-state"><div class="empty-state-icon">&#128100;</div><p>Select a contact to view details</p></div>';
                             document.getElementById('open-in-dt-btn').style.display = 'none';
+                            document.getElementById('users-list').innerHTML =
+                                '<div class="empty-state"><div class="empty-state-icon">👉</div><p>Select a contact to see matching multipliers</p></div>';
+                            document.getElementById('users-count').textContent = '(0)';
                             selectedContactId = null;
+                            selectedContactLocationIds = [];
+                            selectedContactLanguages = [];
+                            users = [];
                         }
 
                         // Update user stats
