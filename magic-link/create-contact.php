@@ -9,12 +9,12 @@ if ( ! defined( 'ABSPATH' ) ) {
 class Disciple_Tools_Homescreen_Apps_Create_Contact_Magic_Link {
 
     public $page_title = 'Create Contact';
-    public $root = "homescreen_apps";
+    public $root = 'homescreen_apps';
     public $type = 'create_contact';
     public $type_name = 'Create Contact';
     public $post_type = 'contacts';
     public $type_actions = [
-        '' => "Create Contact",
+        '' => 'Create Contact',
     ];
 
     private static $_instance = null;

@@ -9,13 +9,13 @@ if ( ! defined( 'ABSPATH' ) ) {
 class Disciple_Tools_Homescreen_Apps_My_Coaching_Magic_Link {
 
     public $page_title = 'My Coaching';
-    public $root = "homescreen_apps";
+    public $root = 'homescreen_apps';
     public $type = 'my_coaching';
     public $type_name = 'My Coaching';
     public $post_type = 'contacts';
     public $record_post_type = 'contacts';
     public $type_actions = [
-        '' => "My Coaching",
+        '' => 'My Coaching',
     ];
 
     private static $_instance = null;

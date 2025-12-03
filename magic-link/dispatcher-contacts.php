@@ -9,13 +9,13 @@ if ( ! defined( 'ABSPATH' ) ) {
 class Disciple_Tools_Homescreen_Apps_Dispatcher_Contacts_Magic_Link {
 
     public $page_title = 'Dispatcher Contacts';
-    public $root = "homescreen_apps";
+    public $root = 'homescreen_apps';
     public $type = 'dispatcher_contacts';
     public $type_name = 'Dispatcher Contacts';
     public $post_type = 'user';
     public $record_post_type = 'contacts';
     public $type_actions = [
-        '' => "Dispatcher Contacts",
+        '' => 'Dispatcher Contacts',
     ];
 
     private static $_instance = null;

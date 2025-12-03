@@ -17,14 +17,14 @@ add_filter( 'dt_home_apps', function( $apps ) {
      * Build array containing Bible.com app config
      */
     $bible_app_config = [
-        "name" => "Bible",
-        "type" => "Link",
+        'name' => 'Bible',
+        'type' => 'Link',
         'creation_type' => 'code',
-        "icon" => plugin_dir_url( dirname( __FILE__ ) ) . 'assets/bible.png',
+        'icon' => plugin_dir_url( dirname( __FILE__ ) ) . 'assets/bible.png',
         'url' => 'https://www.bible.com/bible/111/MAT.1.NIV',
-        "sort" => 10,
-        "slug" => "bible-com-link",
-        "is_hidden" => false,
+        'sort' => 10,
+        'slug' => 'bible-com-link',
+        'is_hidden' => false,
         'open_in_new_tab' => true
     ];
 
