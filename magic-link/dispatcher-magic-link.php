@@ -177,7 +177,7 @@ class Disciple_Tools_Homescreen_Apps_Dispatcher_Magic_Link extends DT_Magic_Url_
 
                 $age_days = 0;
                 if ( ! empty( $contact['post_date']['timestamp'] ) ) {
-                    $age_days = floor( ( time() - $contact['post_date']['timestamp'] ) / 86400 );
+                    $age_days = max( 0, floor( ( time() - $contact['post_date']['timestamp'] ) / 86400 ) );
                 }
 
                 $result[] = [
@@ -294,7 +294,7 @@ class Disciple_Tools_Homescreen_Apps_Dispatcher_Magic_Link extends DT_Magic_Url_
 
         $age_days = 0;
         if ( ! empty( $contact['post_date']['timestamp'] ) ) {
-            $age_days = floor( ( time() - $contact['post_date']['timestamp'] ) / 86400 );
+            $age_days = max( 0, floor( ( time() - $contact['post_date']['timestamp'] ) / 86400 ) );
         }
 
         // Extract location grid IDs for matching
@@ -867,6 +867,15 @@ class Disciple_Tools_Homescreen_Apps_Dispatcher_Magic_Link extends DT_Magic_Url_
                 padding-bottom: 8px;
             }
 
+            .contact-name-header {
+                font-size: 22px;
+                font-weight: 700;
+                color: var(--primary-color);
+                margin: 0 0 20px 0;
+                padding-bottom: 12px;
+                border-bottom: 2px solid var(--primary-color);
+            }
+
             .detail-tile {
                 margin-bottom: 20px;
                 padding-bottom: 16px;
@@ -1265,6 +1274,147 @@ class Disciple_Tools_Homescreen_Apps_Dispatcher_Magic_Link extends DT_Magic_Url_
                     max-height: 400px;
                 }
             }
+
+            /* Mobile Layout */
+            @media (max-width: 768px) {
+                .dispatcher-container {
+                    grid-template-columns: 1fr;
+                    height: 100vh;
+                    padding: 0;
+                    gap: 0;
+                }
+
+                /* Hide contacts list on mobile */
+                #contacts-panel {
+                    display: none;
+                }
+
+                /* Hide users panel by default on mobile */
+                #users-panel {
+                    display: none;
+                    position: fixed;
+                    top: 0;
+                    left: 0;
+                    right: 0;
+                    bottom: 0;
+                    z-index: 1000;
+                    max-height: none;
+                    border-radius: 0;
+                }
+
+                #users-panel.mobile-visible {
+                    display: flex;
+                }
+
+                /* Details panel full screen on mobile */
+                #details-panel {
+                    max-height: none;
+                    height: 100vh;
+                    border-radius: 0;
+                }
+
+                .panel-header {
+                    position: sticky;
+                    top: 0;
+                    z-index: 10;
+                }
+
+                /* Mobile navigation */
+                .mobile-nav {
+                    display: flex;
+                    align-items: center;
+                    gap: 8px;
+                }
+
+                .mobile-nav-btn {
+                    background: var(--primary-color);
+                    color: white;
+                    border: none;
+                    padding: 6px 12px;
+                    border-radius: 4px;
+                    font-size: 12px;
+                    cursor: pointer;
+                }
+
+                .mobile-nav-btn:disabled {
+                    background: #ccc;
+                    cursor: not-allowed;
+                }
+
+                .mobile-nav-counter {
+                    font-size: 12px;
+                    color: #666;
+                    font-weight: normal;
+                }
+
+                .mobile-assign-btn {
+                    background: var(--success-color);
+                    color: white;
+                    border: none;
+                    padding: 6px 14px;
+                    border-radius: 4px;
+                    font-size: 13px;
+                    font-weight: 500;
+                    cursor: pointer;
+                    margin-left: auto;
+                }
+
+                .mobile-close-btn {
+                    background: #666;
+                    color: white;
+                    border: none;
+                    padding: 8px 16px;
+                    border-radius: 4px;
+                    font-size: 14px;
+                    cursor: pointer;
+                    margin-left: auto;
+                }
+
+                #users-panel .panel-header {
+                    display: flex;
+                    flex-wrap: wrap;
+                    align-items: center;
+                    gap: 8px;
+                }
+
+                #users-panel .panel-header #user-search {
+                    width: 100%;
+                    order: 3;
+                }
+
+                #details-panel .panel-header {
+                    display: flex;
+                    flex-wrap: wrap;
+                    align-items: center;
+                    gap: 8px;
+                }
+
+                #details-panel .open-dt-btn {
+                    order: 2;
+                    margin-left: 0;
+                    padding: 6px 10px;
+                    font-size: 11px;
+                }
+
+                .details-grid {
+                    grid-template-columns: 1fr;
+                }
+            }
+
+            /* Show mobile elements only on mobile */
+            .mobile-only {
+                display: none;
+            }
+
+            @media (max-width: 768px) {
+                .mobile-only {
+                    display: flex;
+                }
+
+                .desktop-only {
+                    display: none;
+                }
+            }
         </style>
         <?php
     }
@@ -1278,7 +1428,8 @@ class Disciple_Tools_Homescreen_Apps_Dispatcher_Magic_Link extends DT_Magic_Url_
             <!-- Left Panel: Users List -->
             <div class="panel" id="users-panel">
                 <div class="panel-header">
-                    Multipliers <span id="users-count">(0)</span>
+                    <span>Multipliers <span id="users-count">(0)</span></span>
+                    <button class="mobile-close-btn mobile-only" onclick="hideMobileUsersList()">Close</button>
                     <input type="text" id="user-search" placeholder="Search multipliers..." oninput="filterUsers(this.value)">
                 </div>
                 <div class="panel-content" id="users-list">
@@ -1305,8 +1456,16 @@ class Disciple_Tools_Homescreen_Apps_Dispatcher_Magic_Link extends DT_Magic_Url_
             <!-- Right Panel: Contact Details -->
             <div class="panel" id="details-panel">
                 <div class="panel-header">
-                    Contact Details
+                    <span class="desktop-only">Contact Details</span>
                     <a href="#" id="open-in-dt-btn" class="open-dt-btn" target="_blank" style="display: none;">Open in D.T.</a>
+
+                    <!-- Mobile navigation -->
+                    <div class="mobile-nav mobile-only">
+                        <button class="mobile-nav-btn" id="mobile-prev-btn" onclick="navigateContact(-1)" disabled>&larr; Prev</button>
+                        <span class="mobile-nav-counter" id="mobile-counter">0 / 0</span>
+                        <button class="mobile-nav-btn" id="mobile-next-btn" onclick="navigateContact(1)">Next &rarr;</button>
+                        <button class="mobile-assign-btn" id="mobile-assign-btn" onclick="showMobileUsersList()">Assign</button>
+                    </div>
                 </div>
                 <div class="panel-content" id="contact-details">
                     <div class="empty-state">
@@ -1417,8 +1576,17 @@ class Disciple_Tools_Homescreen_Apps_Dispatcher_Magic_Link extends DT_Magic_Url_
 
                 if (contacts.length === 0) {
                     container.innerHTML = '<div class="empty-state"><p>No contacts need dispatch</p></div>';
+                    // Update mobile nav for empty state
+                    if (isMobile()) {
+                        document.getElementById('mobile-counter').textContent = '0 / 0';
+                        document.getElementById('mobile-prev-btn').disabled = true;
+                        document.getElementById('mobile-next-btn').disabled = true;
+                    }
                     return;
                 }
+
+                // Auto-select first contact on mobile
+                autoSelectFirstContactOnMobile();
 
                 container.innerHTML = contacts.map(contact => {
                     const ageClass = contact.age_days <= 1 ? 'fresh' :
@@ -1555,6 +1723,11 @@ class Disciple_Tools_Homescreen_Apps_Dispatcher_Magic_Link extends DT_Magic_Url_
             async function selectContact(contactId) {
                 selectedContactId = contactId;
 
+                // Update mobile navigation
+                if (isMobile()) {
+                    updateMobileNav();
+                }
+
                 // Highlight selected contact
                 document.querySelectorAll('.contact-item').forEach(el => {
                     el.classList.toggle('selected', parseInt(el.dataset.contactId) === contactId);
@@ -1642,7 +1815,7 @@ class Disciple_Tools_Homescreen_Apps_Dispatcher_Magic_Link extends DT_Magic_Url_
                 container.innerHTML = `
                     <div class="details-grid">
                         <div class="details-column">
-                            <h3>${escapeHtml(contact.name)}</h3>
+                            <h2 class="contact-name-header">${escapeHtml(contact.name)}</h2>
                             ${tilesHtml}
                             ${createdHtml}
                         </div>
@@ -1725,22 +1898,45 @@ class Disciple_Tools_Homescreen_Apps_Dispatcher_Magic_Link extends DT_Magic_Url_
 
                     // Check for success - either explicit success flag or successful post update (has ID)
                     if (result.success || (result.ID && !result.code)) {
+                        // Get current index before removing for mobile navigation
+                        const currentIndex = getCurrentContactIndex();
+
                         // Remove contact from list
                         contacts = contacts.filter(c => parseInt(c.ID) !== contactId);
-                        renderContacts();
 
-                        // Clear details and users list if this was the selected contact
-                        if (parseInt(selectedContactId) === contactId) {
-                            document.getElementById('contact-details').innerHTML =
-                                '<div class="empty-state"><div class="empty-state-icon">&#128100;</div><p>Select a contact to view details</p></div>';
-                            document.getElementById('open-in-dt-btn').style.display = 'none';
-                            document.getElementById('users-list').innerHTML =
-                                '<div class="empty-state"><div class="empty-state-icon">👉</div><p>Select a contact to see matching multipliers</p></div>';
-                            document.getElementById('users-count').textContent = '(0)';
-                            selectedContactId = null;
-                            selectedContactLocationIds = [];
-                            selectedContactLanguages = [];
-                            users = [];
+                        // Handle mobile: hide users list and navigate to next contact
+                        if (isMobile()) {
+                            hideMobileUsersList();
+
+                            if (contacts.length > 0) {
+                                // Navigate to next contact (or previous if we were at the end)
+                                const newIndex = Math.min(currentIndex, contacts.length - 1);
+                                selectContact(contacts[newIndex].ID);
+                            } else {
+                                // No more contacts
+                                selectedContactId = null;
+                                document.getElementById('contact-details').innerHTML =
+                                    '<div class="empty-state"><div class="empty-state-icon">🎉</div><p>All contacts have been dispatched!</p></div>';
+                                updateMobileNav();
+                            }
+                            renderContacts();
+                        } else {
+                            // Desktop behavior
+                            renderContacts();
+
+                            // Clear details and users list if this was the selected contact
+                            if (parseInt(selectedContactId) === contactId) {
+                                document.getElementById('contact-details').innerHTML =
+                                    '<div class="empty-state"><div class="empty-state-icon">&#128100;</div><p>Select a contact to view details</p></div>';
+                                document.getElementById('open-in-dt-btn').style.display = 'none';
+                                document.getElementById('users-list').innerHTML =
+                                    '<div class="empty-state"><div class="empty-state-icon">👉</div><p>Select a contact to see matching multipliers</p></div>';
+                                document.getElementById('users-count').textContent = '(0)';
+                                selectedContactId = null;
+                                selectedContactLocationIds = [];
+                                selectedContactLanguages = [];
+                                users = [];
+                            }
                         }
 
                         // Update user stats
@@ -1991,6 +2187,49 @@ class Disciple_Tools_Homescreen_Apps_Dispatcher_Magic_Link extends DT_Magic_Url_
                 setTimeout(() => {
                     toast.classList.remove('show');
                 }, 3000);
+            }
+
+            // Mobile functionality
+            function isMobile() {
+                return window.innerWidth <= 768;
+            }
+
+            function getCurrentContactIndex() {
+                if (!selectedContactId) return -1;
+                return contacts.findIndex(c => parseInt(c.ID) === parseInt(selectedContactId));
+            }
+
+            function updateMobileNav() {
+                const currentIndex = getCurrentContactIndex();
+                const total = contacts.length;
+
+                document.getElementById('mobile-counter').textContent = `${currentIndex + 1} / ${total}`;
+                document.getElementById('mobile-prev-btn').disabled = currentIndex <= 0;
+                document.getElementById('mobile-next-btn').disabled = currentIndex >= total - 1;
+            }
+
+            function navigateContact(direction) {
+                const currentIndex = getCurrentContactIndex();
+                const newIndex = currentIndex + direction;
+
+                if (newIndex >= 0 && newIndex < contacts.length) {
+                    selectContact(contacts[newIndex].ID);
+                }
+            }
+
+            function showMobileUsersList() {
+                document.getElementById('users-panel').classList.add('mobile-visible');
+            }
+
+            function hideMobileUsersList() {
+                document.getElementById('users-panel').classList.remove('mobile-visible');
+            }
+
+            // Auto-select first contact on mobile after loading
+            function autoSelectFirstContactOnMobile() {
+                if (isMobile() && contacts.length > 0 && !selectedContactId) {
+                    selectContact(contacts[0].ID);
+                }
             }
         </script>
         <?php
