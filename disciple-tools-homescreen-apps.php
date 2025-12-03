@@ -5,7 +5,7 @@
  * Description: This is a template for the D.T Homescreen Plugin.
  * Text Domain: disciple-tools-homescreen-apps
  * Domain Path: /languages
- * Version:  0.3
+ * Version:  0.3.0
  * Author URI: https://github.com/DiscipleTools
  * GitHub Plugin URI: https://github.com/DiscipleTools/disciple-tools-homescreen-apps
  * Requires at least: 4.7.0
