@@ -55,6 +55,12 @@ class Disciple_Tools_Homescreen_Apps_Dispatcher_Magic_Link extends DT_Magic_Url_
             return;
         }
 
+        // Require user to be logged in
+        if ( ! is_user_logged_in() ) {
+            wp_redirect( dt_login_url( 'login', '?redirect_to=' . rawurlencode( site_url( dt_get_url_path() ) ) ) );
+            exit;
+        }
+
         add_action( 'dt_blank_body', [ $this, 'body' ] );
         add_filter( 'dt_magic_url_base_allowed_css', [ $this, 'dt_magic_url_base_allowed_css' ], 10, 1 );
         add_filter( 'dt_magic_url_base_allowed_js', [ $this, 'dt_magic_url_base_allowed_js' ], 10, 1 );
@@ -86,15 +92,16 @@ class Disciple_Tools_Homescreen_Apps_Dispatcher_Magic_Link extends DT_Magic_Url_
     public function add_endpoints() {
         $namespace = $this->root . '/v1';
 
+        $permission_callback = function () {
+            return is_user_logged_in();
+        };
+
         register_rest_route(
             $namespace, '/' . $this->type . '/contacts', [
                 [
                     'methods'             => 'POST',
                     'callback'            => [ $this, 'get_unassigned_contacts' ],
-                    'permission_callback' => function ( WP_REST_Request $request ) {
-                        $magic = new DT_Magic_URL( $this->root );
-                        return $magic->verify_rest_endpoint_permissions_on_post( $request );
-                    },
+                    'permission_callback' => $permission_callback,
                 ],
             ]
         );
@@ -104,10 +111,7 @@ class Disciple_Tools_Homescreen_Apps_Dispatcher_Magic_Link extends DT_Magic_Url_
                 [
                     'methods'             => 'POST',
                     'callback'            => [ $this, 'get_contact_details' ],
-                    'permission_callback' => function ( WP_REST_Request $request ) {
-                        $magic = new DT_Magic_URL( $this->root );
-                        return $magic->verify_rest_endpoint_permissions_on_post( $request );
-                    },
+                    'permission_callback' => $permission_callback,
                 ],
             ]
         );
@@ -117,10 +121,7 @@ class Disciple_Tools_Homescreen_Apps_Dispatcher_Magic_Link extends DT_Magic_Url_
                 [
                     'methods'             => 'POST',
                     'callback'            => [ $this, 'get_users_with_workload' ],
-                    'permission_callback' => function ( WP_REST_Request $request ) {
-                        $magic = new DT_Magic_URL( $this->root );
-                        return $magic->verify_rest_endpoint_permissions_on_post( $request );
-                    },
+                    'permission_callback' => $permission_callback,
                 ],
             ]
         );
@@ -130,10 +131,7 @@ class Disciple_Tools_Homescreen_Apps_Dispatcher_Magic_Link extends DT_Magic_Url_
                 [
                     'methods'             => 'POST',
                     'callback'            => [ $this, 'assign_contact_to_user' ],
-                    'permission_callback' => function ( WP_REST_Request $request ) {
-                        $magic = new DT_Magic_URL( $this->root );
-                        return $magic->verify_rest_endpoint_permissions_on_post( $request );
-                    },
+                    'permission_callback' => $permission_callback,
                 ],
             ]
         );
@@ -143,10 +141,7 @@ class Disciple_Tools_Homescreen_Apps_Dispatcher_Magic_Link extends DT_Magic_Url_
                 [
                     'methods'             => 'POST',
                     'callback'            => [ $this, 'add_comment' ],
-                    'permission_callback' => function ( WP_REST_Request $request ) {
-                        $magic = new DT_Magic_URL( $this->root );
-                        return $magic->verify_rest_endpoint_permissions_on_post( $request );
-                    },
+                    'permission_callback' => $permission_callback,
                 ],
             ]
         );
@@ -156,10 +151,7 @@ class Disciple_Tools_Homescreen_Apps_Dispatcher_Magic_Link extends DT_Magic_Url_
                 [
                     'methods'             => 'POST',
                     'callback'            => [ $this, 'get_users_for_mention' ],
-                    'permission_callback' => function ( WP_REST_Request $request ) {
-                        $magic = new DT_Magic_URL( $this->root );
-                        return $magic->verify_rest_endpoint_permissions_on_post( $request );
-                    },
+                    'permission_callback' => $permission_callback,
                 ],
             ]
         );
@@ -169,19 +161,11 @@ class Disciple_Tools_Homescreen_Apps_Dispatcher_Magic_Link extends DT_Magic_Url_
      * Get unassigned contacts
      */
     public function get_unassigned_contacts( WP_REST_Request $request ) {
-        $params = $request->get_json_params();
-        $params = dt_recursive_sanitize_array( $params );
-
-        // Set current user for permissions
-        if ( isset( $params['parts']['post_id'] ) ) {
-            wp_set_current_user( $params['parts']['post_id'] );
-        }
-
         $contacts = DT_Posts::list_posts( 'contacts', [
             'overall_status' => [ 'unassigned' ],
             'sort'           => '-post_date',
             'limit'          => 100,
-        ], false );
+        ], true );
 
         $result = [];
         if ( ! is_wp_error( $contacts ) && isset( $contacts['posts'] ) ) {
@@ -220,18 +204,14 @@ class Disciple_Tools_Homescreen_Apps_Dispatcher_Magic_Link extends DT_Magic_Url_
         $params = dt_recursive_sanitize_array( $params );
         $contact_id = intval( $params['contact_id'] ?? 0 );
 
-        if ( isset( $params['parts']['post_id'] ) ) {
-            wp_set_current_user( $params['parts']['post_id'] );
-        }
-
-        $contact = DT_Posts::get_post( 'contacts', $contact_id, false, false );
+        $contact = DT_Posts::get_post( 'contacts', $contact_id, true, true );
         if ( is_wp_error( $contact ) ) {
             return new WP_Error( 'contact_not_found', 'Contact not found', [ 'status' => 404 ] );
         }
 
         $field_settings = DT_Posts::get_post_field_settings( 'contacts' );
         $tile_settings = DT_Posts::get_post_tiles( 'contacts' );
-        $comments = DT_Posts::get_post_comments( 'contacts', $contact_id, false, 'all', [ 'number' => 50 ] );
+        $comments = DT_Posts::get_post_comments( 'contacts', $contact_id, true, 'all', [ 'number' => 50 ] );
 
         // Fields to skip (internal/system fields)
         $skip_fields = [ 'corresponds_to_user', 'duplicate_data', 'duplicate_of', 'post_author', 'record_picture', 'name' ];
@@ -470,10 +450,6 @@ class Disciple_Tools_Homescreen_Apps_Dispatcher_Magic_Link extends DT_Magic_Url_
         $params = $request->get_json_params();
         $params = dt_recursive_sanitize_array( $params );
 
-        if ( isset( $params['parts']['post_id'] ) ) {
-            wp_set_current_user( $params['parts']['post_id'] );
-        }
-
         // Get contact location and language data for matching
         $contact_location_ids = $params['contact_location_ids'] ?? [];
         $contact_languages = $params['contact_languages'] ?? [];
@@ -691,14 +667,10 @@ class Disciple_Tools_Homescreen_Apps_Dispatcher_Magic_Link extends DT_Magic_Url_
             return new WP_Error( 'missing_params', 'Contact ID and User ID are required', [ 'status' => 400 ] );
         }
 
-        if ( isset( $params['parts']['post_id'] ) ) {
-            wp_set_current_user( $params['parts']['post_id'] );
-        }
-
         $result = DT_Posts::update_post( 'contacts', $contact_id, [
             'assigned_to'    => $user_id,
             'overall_status' => 'assigned',
-        ], false, false );
+        ], true, true );
 
         if ( is_wp_error( $result ) ) {
             return $result;
@@ -726,11 +698,7 @@ class Disciple_Tools_Homescreen_Apps_Dispatcher_Magic_Link extends DT_Magic_Url_
             return new WP_Error( 'missing_params', 'Contact ID and comment are required', [ 'status' => 400 ] );
         }
 
-        if ( isset( $params['parts']['post_id'] ) ) {
-            wp_set_current_user( $params['parts']['post_id'] );
-        }
-
-        $result = DT_Posts::add_post_comment( 'contacts', $contact_id, $comment, 'comment', [], false, true );
+        $result = DT_Posts::add_post_comment( 'contacts', $contact_id, $comment, 'comment', [], true, true );
 
         if ( is_wp_error( $result ) ) {
             return $result;
@@ -751,10 +719,6 @@ class Disciple_Tools_Homescreen_Apps_Dispatcher_Magic_Link extends DT_Magic_Url_
         $params = dt_recursive_sanitize_array( $params );
 
         $search = $params['search'] ?? '';
-
-        if ( isset( $params['parts']['post_id'] ) ) {
-            wp_set_current_user( $params['parts']['post_id'] );
-        }
 
         global $wpdb;
 
