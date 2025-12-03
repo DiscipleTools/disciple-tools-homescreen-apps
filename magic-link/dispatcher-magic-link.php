@@ -137,6 +137,32 @@ class Disciple_Tools_Homescreen_Apps_Dispatcher_Magic_Link extends DT_Magic_Url_
                 ],
             ]
         );
+
+        register_rest_route(
+            $namespace, '/' . $this->type . '/comment', [
+                [
+                    'methods'             => 'POST',
+                    'callback'            => [ $this, 'add_comment' ],
+                    'permission_callback' => function ( WP_REST_Request $request ) {
+                        $magic = new DT_Magic_URL( $this->root );
+                        return $magic->verify_rest_endpoint_permissions_on_post( $request );
+                    },
+                ],
+            ]
+        );
+
+        register_rest_route(
+            $namespace, '/' . $this->type . '/users-mention', [
+                [
+                    'methods'             => 'POST',
+                    'callback'            => [ $this, 'get_users_for_mention' ],
+                    'permission_callback' => function ( WP_REST_Request $request ) {
+                        $magic = new DT_Magic_URL( $this->root );
+                        return $magic->verify_rest_endpoint_permissions_on_post( $request );
+                    },
+                ],
+            ]
+        );
     }
 
     /**
@@ -687,6 +713,65 @@ class Disciple_Tools_Homescreen_Apps_Dispatcher_Magic_Link extends DT_Magic_Url_
     }
 
     /**
+     * Add a comment to a contact
+     */
+    public function add_comment( WP_REST_Request $request ) {
+        $params = $request->get_json_params();
+        $params = dt_recursive_sanitize_array( $params );
+
+        $contact_id = intval( $params['contact_id'] ?? 0 );
+        $comment = $params['comment'] ?? '';
+
+        if ( ! $contact_id || empty( $comment ) ) {
+            return new WP_Error( 'missing_params', 'Contact ID and comment are required', [ 'status' => 400 ] );
+        }
+
+        if ( isset( $params['parts']['post_id'] ) ) {
+            wp_set_current_user( $params['parts']['post_id'] );
+        }
+
+        $result = DT_Posts::add_post_comment( 'contacts', $contact_id, $comment, 'comment', [], false, true );
+
+        if ( is_wp_error( $result ) ) {
+            return $result;
+        }
+
+        return [
+            'success'    => true,
+            'contact_id' => $contact_id,
+            'comment_id' => $result,
+        ];
+    }
+
+    /**
+     * Get users for @mention autocomplete
+     */
+    public function get_users_for_mention( WP_REST_Request $request ) {
+        $params = $request->get_json_params();
+        $params = dt_recursive_sanitize_array( $params );
+
+        $search = $params['search'] ?? '';
+
+        if ( isset( $params['parts']['post_id'] ) ) {
+            wp_set_current_user( $params['parts']['post_id'] );
+        }
+
+        global $wpdb;
+
+        $users = $wpdb->get_results( $wpdb->prepare( "
+            SELECT ID, display_name
+            FROM $wpdb->users
+            WHERE display_name LIKE %s
+            ORDER BY display_name
+            LIMIT 10
+        ", '%' . $wpdb->esc_like( $search ) . '%' ), ARRAY_A );
+
+        return [
+            'users' => $users,
+        ];
+    }
+
+    /**
      * Custom header styles
      */
     public function header_style() {
@@ -885,6 +970,19 @@ class Disciple_Tools_Homescreen_Apps_Dispatcher_Magic_Link extends DT_Magic_Url_
                 white-space: pre-wrap;
             }
 
+            .comment-content a {
+                color: var(--primary-color);
+                word-break: break-all;
+            }
+
+            .mention-tag {
+                color: var(--primary-color);
+                font-weight: 500;
+                background: #e3f2fd;
+                padding: 1px 4px;
+                border-radius: 3px;
+            }
+
             @media (max-width: 1200px) {
                 .details-grid {
                     grid-template-columns: 1fr;
@@ -1041,6 +1139,96 @@ class Disciple_Tools_Homescreen_Apps_Dispatcher_Magic_Link extends DT_Magic_Url_
                 color: white;
             }
 
+            /* Comment input */
+            .comment-input-inline {
+                margin-bottom: 16px;
+                padding-bottom: 16px;
+                border-bottom: 1px solid var(--border-color);
+            }
+
+            .comment-input-wrapper {
+                position: relative;
+            }
+
+            .comment-textarea {
+                width: 100%;
+                min-height: 80px;
+                padding: 10px;
+                border: 1px solid var(--border-color);
+                border-radius: 6px;
+                font-size: 14px;
+                font-family: inherit;
+                resize: vertical;
+            }
+
+            .comment-textarea:focus {
+                outline: none;
+                border-color: var(--primary-color);
+            }
+
+            .comment-actions {
+                display: flex;
+                justify-content: flex-end;
+                gap: 8px;
+                margin-top: 8px;
+            }
+
+            .comment-submit-btn {
+                background: var(--primary-color);
+                color: white;
+                border: none;
+                padding: 8px 16px;
+                border-radius: 4px;
+                font-size: 13px;
+                cursor: pointer;
+                transition: background 0.2s ease;
+            }
+
+            .comment-submit-btn:hover {
+                background: #2d5a7b;
+            }
+
+            .comment-submit-btn:disabled {
+                background: #ccc;
+                cursor: not-allowed;
+            }
+
+            /* @mention dropdown */
+            .mention-dropdown {
+                position: absolute;
+                top: 100%;
+                left: 0;
+                right: 0;
+                background: white;
+                border: 1px solid var(--border-color);
+                border-radius: 6px;
+                box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+                max-height: 200px;
+                overflow-y: auto;
+                display: none;
+                z-index: 1000;
+                margin-top: 4px;
+            }
+
+            .mention-dropdown.show {
+                display: block;
+            }
+
+            .mention-item {
+                padding: 10px 12px;
+                cursor: pointer;
+                font-size: 14px;
+            }
+
+            .mention-item:hover,
+            .mention-item.active {
+                background: #e3f2fd;
+            }
+
+            .mention-item .mention-name {
+                font-weight: 500;
+            }
+
             /* Empty states */
             .empty-state {
                 text-align: center;
@@ -1140,7 +1328,7 @@ class Disciple_Tools_Homescreen_Apps_Dispatcher_Magic_Link extends DT_Magic_Url_
             <!-- Center Panel: Contacts List -->
             <div class="panel" id="contacts-panel">
                 <div class="panel-header">
-                    Unassigned Contacts <span id="contacts-count">(0)</span>
+                    Dispatch Needed <span id="contacts-count">(0)</span>
                 </div>
                 <div class="panel-content" id="contacts-list">
                     <div class="loading">
@@ -1264,7 +1452,7 @@ class Disciple_Tools_Homescreen_Apps_Dispatcher_Magic_Link extends DT_Magic_Url_
                 count.textContent = `(${contacts.length})`;
 
                 if (contacts.length === 0) {
-                    container.innerHTML = '<div class="empty-state"><p>No unassigned contacts</p></div>';
+                    container.innerHTML = '<div class="empty-state"><p>No contacts need dispatch</p></div>';
                     return;
                 }
 
@@ -1482,7 +1670,7 @@ class Disciple_Tools_Homescreen_Apps_Dispatcher_Magic_Link extends DT_Magic_Url_
                         <div class="comment-item">
                             <span class="comment-author">${escapeHtml(c.comment_author)}</span>
                             <span class="comment-date">${escapeHtml(c.comment_date)}</span>
-                            <div class="comment-content">${escapeHtml(c.comment_content)}</div>
+                            <div class="comment-content">${formatComment(c.comment_content)}</div>
                         </div>
                     `).join('') :
                     '<p class="detail-empty">No comments or activity yet</p>';
@@ -1497,12 +1685,24 @@ class Disciple_Tools_Homescreen_Apps_Dispatcher_Magic_Link extends DT_Magic_Url_
 
                         <div class="details-column">
                             <h3>Comments & Activity</h3>
+                            <div class="comment-input-inline">
+                                <div class="comment-input-wrapper">
+                                    <div class="mention-dropdown" id="mention-dropdown"></div>
+                                    <textarea class="comment-textarea" id="comment-textarea" placeholder="Type your comment... Use @ to mention users"></textarea>
+                                </div>
+                                <div class="comment-actions">
+                                    <button class="comment-submit-btn" id="comment-submit-btn" onclick="submitComment()">Add Comment</button>
+                                </div>
+                            </div>
                             <div class="comment-list">
                                 ${commentsHtml}
                             </div>
                         </div>
                     </div>
                 `;
+
+                // Initialize mention listeners after rendering
+                initMentionListeners();
             }
 
             // Drag and drop handlers
@@ -1600,21 +1800,233 @@ class Disciple_Tools_Homescreen_Apps_Dispatcher_Magic_Link extends DT_Magic_Url_
                 }
             }
 
-            // Show success toast
-            function showSuccessToast() {
-                const toast = document.getElementById('success-toast');
-                toast.classList.add('show');
-                setTimeout(() => {
-                    toast.classList.remove('show');
-                }, 3000);
-            }
-
             // Utility: escape HTML
             function escapeHtml(text) {
                 if (!text) return '';
                 const div = document.createElement('div');
                 div.textContent = text;
                 return div.innerHTML;
+            }
+
+            // Format comment content (mentions and links)
+            function formatComment(text) {
+                if (!text) return '';
+
+                // First escape HTML
+                let formatted = escapeHtml(text);
+
+                // Format @mentions: @[Name](id) -> styled span
+                formatted = formatted.replace(
+                    /@\[([^\]]+)\]\((\d+)\)/g,
+                    '<span class="mention-tag">@$1</span>'
+                );
+
+                // Format URLs to clickable links
+                const urlRegex = /(https?:\/\/[^\s<]+)/g;
+                formatted = formatted.replace(
+                    urlRegex,
+                    '<a href="$1" target="_blank" rel="noopener noreferrer">$1</a>'
+                );
+
+                return formatted;
+            }
+
+            // Comment submission
+            async function submitComment() {
+                const textarea = document.getElementById('comment-textarea');
+                const submitBtn = document.getElementById('comment-submit-btn');
+                const comment = textarea.value.trim();
+
+                if (!comment || !selectedContactId) return;
+
+                submitBtn.disabled = true;
+                submitBtn.textContent = 'Posting...';
+
+                try {
+                    const response = await fetch(
+                        `${dispatcherApp.root}${dispatcherApp.parts.root}/v1/${dispatcherApp.parts.type}/comment`,
+                        {
+                            method: 'POST',
+                            headers: {
+                                'Content-Type': 'application/json',
+                                'X-WP-Nonce': dispatcherApp.nonce
+                            },
+                            body: JSON.stringify({
+                                contact_id: selectedContactId,
+                                comment: comment,
+                                parts: dispatcherApp.parts
+                            })
+                        }
+                    );
+
+                    const result = await response.json();
+
+                    if (result.success || result.comment_id) {
+                        textarea.value = '';
+                        // Reload contact details to show new comment
+                        selectContact(selectedContactId);
+                        showSuccessToast('Comment added successfully!');
+                    } else {
+                        alert('Failed to add comment: ' + (result.message || 'Unknown error'));
+                    }
+                } catch (error) {
+                    console.error('Error posting comment:', error);
+                    alert('Error posting comment');
+                } finally {
+                    submitBtn.disabled = false;
+                    submitBtn.textContent = 'Add Comment';
+                }
+            }
+
+            // @mention functionality
+            let mentionSearchTimeout = null;
+            let mentionStartPos = -1;
+            let mentionUsers = [];
+            let mentionActiveIndex = 0;
+
+            function initMentionListeners() {
+                const commentTextarea = document.getElementById('comment-textarea');
+                const mentionDropdown = document.getElementById('mention-dropdown');
+
+                if (!commentTextarea || !mentionDropdown) return;
+
+                commentTextarea.addEventListener('input', function(e) {
+                    const text = this.value;
+                    const cursorPos = this.selectionStart;
+
+                    // Find @ symbol before cursor
+                    const textBeforeCursor = text.substring(0, cursorPos);
+                    const lastAtIndex = textBeforeCursor.lastIndexOf('@');
+
+                    if (lastAtIndex !== -1) {
+                        const textAfterAt = textBeforeCursor.substring(lastAtIndex + 1);
+
+                        // Check if there's a space between @ and cursor (means mention is complete)
+                        if (!textAfterAt.includes(' ') && !textAfterAt.includes('\n')) {
+                            mentionStartPos = lastAtIndex;
+
+                            // Debounce the search
+                            clearTimeout(mentionSearchTimeout);
+                            mentionSearchTimeout = setTimeout(() => {
+                                searchMentionUsers(textAfterAt);
+                            }, 200);
+                            return;
+                        }
+                    }
+
+                    // Hide dropdown if no active mention
+                    hideMentionDropdown();
+                });
+
+                commentTextarea.addEventListener('keydown', function(e) {
+                    const dropdown = document.getElementById('mention-dropdown');
+                    if (!dropdown || !dropdown.classList.contains('show')) return;
+
+                    if (e.key === 'ArrowDown') {
+                        e.preventDefault();
+                        mentionActiveIndex = Math.min(mentionActiveIndex + 1, mentionUsers.length - 1);
+                        renderMentionDropdown();
+                    } else if (e.key === 'ArrowUp') {
+                        e.preventDefault();
+                        mentionActiveIndex = Math.max(mentionActiveIndex - 1, 0);
+                        renderMentionDropdown();
+                    } else if (e.key === 'Enter' && mentionUsers.length > 0) {
+                        e.preventDefault();
+                        selectMention(mentionUsers[mentionActiveIndex]);
+                    } else if (e.key === 'Escape') {
+                        hideMentionDropdown();
+                    }
+                });
+            }
+
+            async function searchMentionUsers(search) {
+                if (search.length < 1) {
+                    hideMentionDropdown();
+                    return;
+                }
+
+                try {
+                    const response = await fetch(
+                        `${dispatcherApp.root}${dispatcherApp.parts.root}/v1/${dispatcherApp.parts.type}/users-mention`,
+                        {
+                            method: 'POST',
+                            headers: {
+                                'Content-Type': 'application/json',
+                                'X-WP-Nonce': dispatcherApp.nonce
+                            },
+                            body: JSON.stringify({
+                                search: search,
+                                parts: dispatcherApp.parts
+                            })
+                        }
+                    );
+
+                    const data = await response.json();
+                    mentionUsers = data.users || [];
+                    mentionActiveIndex = 0;
+
+                    if (mentionUsers.length > 0) {
+                        renderMentionDropdown();
+                        const dropdown = document.getElementById('mention-dropdown');
+                        if (dropdown) dropdown.classList.add('show');
+                    } else {
+                        hideMentionDropdown();
+                    }
+                } catch (error) {
+                    console.error('Error searching users:', error);
+                    hideMentionDropdown();
+                }
+            }
+
+            function renderMentionDropdown() {
+                const dropdown = document.getElementById('mention-dropdown');
+                if (!dropdown) return;
+
+                dropdown.innerHTML = mentionUsers.map((user, index) => `
+                    <div class="mention-item ${index === mentionActiveIndex ? 'active' : ''}"
+                         onclick="selectMention(mentionUsers[${index}])">
+                        <span class="mention-name">${escapeHtml(user.display_name)}</span>
+                    </div>
+                `).join('');
+            }
+
+            function selectMention(user) {
+                const textarea = document.getElementById('comment-textarea');
+                const text = textarea.value;
+                const cursorPos = textarea.selectionStart;
+
+                // Replace @search with @[Name](user_id)
+                const beforeMention = text.substring(0, mentionStartPos);
+                const afterCursor = text.substring(cursorPos);
+
+                const mentionText = `@[${user.display_name}](${user.ID}) `;
+                textarea.value = beforeMention + mentionText + afterCursor;
+
+                // Set cursor after mention
+                const newCursorPos = beforeMention.length + mentionText.length;
+                textarea.setSelectionRange(newCursorPos, newCursorPos);
+                textarea.focus();
+
+                hideMentionDropdown();
+            }
+
+            function hideMentionDropdown() {
+                const dropdown = document.getElementById('mention-dropdown');
+                if (dropdown) {
+                    dropdown.classList.remove('show');
+                }
+                mentionUsers = [];
+                mentionStartPos = -1;
+            }
+
+            // Update success toast to accept custom message
+            function showSuccessToast(message = 'Contact assigned successfully!') {
+                const toast = document.getElementById('success-toast');
+                toast.textContent = message;
+                toast.classList.add('show');
+                setTimeout(() => {
+                    toast.classList.remove('show');
+                }, 3000);
             }
         </script>
         <?php
