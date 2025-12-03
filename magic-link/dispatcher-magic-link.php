@@ -238,11 +238,10 @@ class Disciple_Tools_Homescreen_Apps_Dispatcher_Magic_Link extends DT_Magic_Url_
             }
 
             // Skip fields without a tile
-            if ( empty( $field_setting['tile'] ) ) {
+            $tile_key = $field_setting['tile'] ?? '';
+            if ( empty( $tile_key ) ) {
                 continue;
             }
-
-            $tile_key = $field_setting['tile'];
 
             // Skip if tile doesn't exist in tile settings
             if ( ! isset( $tile_settings[ $tile_key ] ) ) {
@@ -394,7 +393,7 @@ class Disciple_Tools_Homescreen_Apps_Dispatcher_Magic_Link extends DT_Magic_Url_
 
             case 'location':
             case 'location_grid':
-            case 'location_grid_meta':
+            case 'location_meta':
                 if ( is_array( $value ) ) {
                     $locations = [];
                     foreach ( $value as $item ) {
@@ -804,7 +803,7 @@ class Disciple_Tools_Homescreen_Apps_Dispatcher_Magic_Link extends DT_Magic_Url_
 
             .dispatcher-container {
                 display: grid;
-                grid-template-columns: 320px 280px 1fr;
+                grid-template-columns: 280px 1fr 320px;
                 gap: 16px;
                 height: 100vh;
                 padding: 16px;
@@ -1597,22 +1596,7 @@ class Disciple_Tools_Homescreen_Apps_Dispatcher_Magic_Link extends DT_Magic_Url_
     public function body() {
         ?>
         <div class="dispatcher-container">
-            <!-- Left Panel: Users List -->
-            <div class="panel" id="users-panel">
-                <div class="panel-header">
-                    <span>Multipliers <span id="users-count">(0)</span></span>
-                    <button class="mobile-close-btn mobile-only" onclick="hideMobileUsersList()">Close</button>
-                    <input type="text" id="user-search" placeholder="Search multipliers..." oninput="filterUsers(this.value)">
-                </div>
-                <div class="panel-content" id="users-list">
-                    <div class="empty-state">
-                        <div class="empty-state-icon">👉</div>
-                        <p>Select a contact to see matching multipliers</p>
-                    </div>
-                </div>
-            </div>
-
-            <!-- Center Panel: Contacts List -->
+            <!-- Left Panel: Contacts List -->
             <div class="panel" id="contacts-panel">
                 <div class="panel-header">
                     Dispatch Needed <span id="contacts-count">(0)</span>
@@ -1625,7 +1609,7 @@ class Disciple_Tools_Homescreen_Apps_Dispatcher_Magic_Link extends DT_Magic_Url_
                 </div>
             </div>
 
-            <!-- Right Panel: Contact Details -->
+            <!-- Center Panel: Contact Details -->
             <div class="panel" id="details-panel">
                 <div class="panel-header">
                     <span class="desktop-only">Contact Details</span>
@@ -1641,6 +1625,21 @@ class Disciple_Tools_Homescreen_Apps_Dispatcher_Magic_Link extends DT_Magic_Url_
                     <div class="empty-state">
                         <div class="empty-state-icon">&#128100;</div>
                         <p>Select a contact to view details</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Right Panel: Users List -->
+            <div class="panel" id="users-panel">
+                <div class="panel-header">
+                    <span>Multipliers <span id="users-count">(0)</span></span>
+                    <button class="mobile-close-btn mobile-only" onclick="hideMobileUsersList()">Close</button>
+                    <input type="text" id="user-search" placeholder="Search multipliers..." oninput="filterUsers(this.value)">
+                </div>
+                <div class="panel-content" id="users-list">
+                    <div class="empty-state">
+                        <div class="empty-state-icon">👈</div>
+                        <p>Select a contact to see matching multipliers</p>
                     </div>
                 </div>
             </div>
@@ -2130,7 +2129,7 @@ class Disciple_Tools_Homescreen_Apps_Dispatcher_Magic_Link extends DT_Magic_Url_
                                 document.getElementById('open-in-dt-btn').style.display = 'none';
                                 document.getElementById('close-contact-btn').style.display = 'none';
                                 document.getElementById('users-list').innerHTML =
-                                    '<div class="empty-state"><div class="empty-state-icon">👉</div><p>Select a contact to see matching multipliers</p></div>';
+                                    '<div class="empty-state"><div class="empty-state-icon">👈</div><p>Select a contact to see matching multipliers</p></div>';
                                 document.getElementById('users-count').textContent = '(0)';
                                 selectedContactId = null;
                                 selectedContactLocationIds = [];
@@ -2523,7 +2522,7 @@ class Disciple_Tools_Homescreen_Apps_Dispatcher_Magic_Link extends DT_Magic_Url_
                             document.getElementById('open-in-dt-btn').style.display = 'none';
                             document.getElementById('close-contact-btn').style.display = 'none';
                             document.getElementById('users-list').innerHTML =
-                                '<div class="empty-state"><div class="empty-state-icon">👉</div><p>Select a contact to see matching multipliers</p></div>';
+                                '<div class="empty-state"><div class="empty-state-icon">👈</div><p>Select a contact to see matching multipliers</p></div>';
                             document.getElementById('users-count').textContent = '(0)';
                             selectedContactId = null;
                             selectedContactLocationIds = [];
