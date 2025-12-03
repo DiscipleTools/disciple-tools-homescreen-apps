@@ -1692,9 +1692,37 @@ class Disciple_Tools_Homescreen_Apps_Dispatcher_Magic_Link extends DT_Magic_Url_
             let contacts = [];
             let users = [];
 
+            // Track previous mobile state for resize handling
+            let wasMobile = window.innerWidth <= 768;
+
             // Initialize
             document.addEventListener('DOMContentLoaded', function() {
                 loadContacts();
+            });
+
+            // Handle window resize - re-render when crossing mobile/desktop threshold
+            window.addEventListener('resize', function() {
+                const nowMobile = window.innerWidth <= 768;
+                if (nowMobile !== wasMobile) {
+                    wasMobile = nowMobile;
+
+                    if (nowMobile) {
+                        // Switching to mobile - auto-select first contact if none selected
+                        if (!selectedContactId && contacts.length > 0) {
+                            selectContact(contacts[0].ID);
+                        } else if (selectedContactId) {
+                            // Re-render with mobile navigation
+                            selectContact(selectedContactId);
+                        }
+                    } else {
+                        // Switching to desktop
+                        hideMobileUsersList();
+                        // Re-render with desktop layout if contact is selected
+                        if (selectedContactId) {
+                            selectContact(selectedContactId);
+                        }
+                    }
+                }
             });
 
             // Load unassigned contacts
