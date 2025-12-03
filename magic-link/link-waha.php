@@ -17,14 +17,14 @@ add_filter( 'dt_home_apps', function( $apps ) {
      * Build array containing WAHA app config
      */
     $waha_app_config = [
-        "name" => "WAHA",
-        "type" => "Link",
+        'name' => 'WAHA',
+        'type' => 'Link',
         'creation_type' => 'code',
-        "icon" => plugin_dir_url( dirname( __FILE__ ) ) . 'assets/waha.webp',
+        'icon' => plugin_dir_url( dirname( __FILE__ ) ) . 'assets/waha.webp',
         'url' => 'https://web.waha.app/eng/01.001/01.001.001',
-        "sort" => 11,
-        "slug" => "waha-app-link",
-        "is_hidden" => false,
+        'sort' => 11,
+        'slug' => 'waha-app-link',
+        'is_hidden' => false,
         'open_in_new_tab' => true
     ];
 

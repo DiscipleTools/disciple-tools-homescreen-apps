@@ -4,18 +4,18 @@ if ( ! defined( 'ABSPATH' ) ) {
 } // Exit if accessed directly.
 
 /**
- * Class Disciple_Tools_Homescreen_Apps_My_Coaching_Magic_Link
+ * Class Disciple_Tools_Homescreen_Apps_Dispatcher_Contacts_Magic_Link
  */
-class Disciple_Tools_Homescreen_Apps_My_Coaching_Magic_Link {
+class Disciple_Tools_Homescreen_Apps_Dispatcher_Contacts_Magic_Link {
 
-    public $page_title = 'My Coaching';
+    public $page_title = 'Dispatcher Contacts';
     public $root = 'homescreen_apps';
-    public $type = 'my_coaching';
-    public $type_name = 'My Coaching';
-    public $post_type = 'contacts';
+    public $type = 'dispatcher_contacts';
+    public $type_name = 'Dispatcher Contacts';
+    public $post_type = 'user';
     public $record_post_type = 'contacts';
     public $type_actions = [
-        '' => 'My Coaching',
+        '' => 'Dispatcher Contacts',
     ];
 
     private static $_instance = null;
@@ -57,18 +57,18 @@ class Disciple_Tools_Homescreen_Apps_My_Coaching_Magic_Link {
             $templates['contacts'] = [];
         }
 
-        $templates['contacts']['templates_my_coaching'] = [
-            'id' => 'templates_my_coaching',
+        $templates['contacts']['templates_dispatcher_contacts'] = [
+            'id' => 'templates_dispatcher_contacts',
             'enabled' => true,
-            'name' => 'My Coaching',
-            'title' => 'My Coaching List',
+            'name' => 'Dispatcher Contacts',
+            'title' => 'Dispatch Needed Contacts',
             'title_translations' => [],
-            'type' => 'post-connections',
+            'type' => 'list-template',
             'post_type' => 'contacts',
             'record_type' => 'contacts',
-            'message' => 'View and manage the contacts you are coaching.',
-            'connection_fields' => [
-                'coached_by'
+            'message' => 'View and manage contacts that need to be dispatched.',
+            'query' => [
+                'overall_status' => [ 'unassigned' ]
             ],
             'fields' => [
                 [
@@ -79,28 +79,21 @@ class Disciple_Tools_Homescreen_Apps_My_Coaching_Magic_Link {
                     'translations' => []
                 ],
                 [
-                    'id' => 'seeker_path',
+                    'id' => 'assigned_to',
                     'type' => 'dt',
                     'enabled' => true,
-                    'label' => 'Seeker Path',
+                    'label' => 'Assigned To',
                     'translations' => []
                 ],
                 [
-                    'id' => 'milestones',
+                    'id' => 'overall_status',
                     'type' => 'dt',
                     'enabled' => true,
-                    'label' => 'Milestones',
-                    'translations' => []
-                ],
-                [
-                    'id' => 'last_modified',
-                    'type' => 'dt',
-                    'enabled' => true,
-                    'label' => 'Last Modified',
+                    'label' => 'Overall Status',
                     'translations' => []
                 ]
             ],
-            'show_recent_comments' => 5,
+            'show_recent_comments' => 1000,
             'send_submission_notifications' => true,
             'supports_create' => false
         ];
@@ -110,4 +103,4 @@ class Disciple_Tools_Homescreen_Apps_My_Coaching_Magic_Link {
 }
 
 // Initialize the magic link
-Disciple_Tools_Homescreen_Apps_My_Coaching_Magic_Link::instance();
+Disciple_Tools_Homescreen_Apps_Dispatcher_Contacts_Magic_Link::instance();
