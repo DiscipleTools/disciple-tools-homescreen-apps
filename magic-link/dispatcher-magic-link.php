@@ -401,7 +401,7 @@ class Disciple_Tools_Homescreen_Apps_Dispatcher_Magic_Link extends DT_Magic_Url_
                             $locations[] = $item['label'];
                         }
                     }
-                    return implode( ', ', $locations );
+                    return implode( "\n", $locations );
                 }
                 return '';
 
@@ -947,6 +947,7 @@ class Disciple_Tools_Homescreen_Apps_Dispatcher_Magic_Link extends DT_Magic_Url_
 
             .detail-value {
                 font-size: 14px;
+                white-space: pre-line;
             }
 
             .detail-empty {
