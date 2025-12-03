@@ -155,6 +155,16 @@ class Disciple_Tools_Homescreen_Apps_Dispatcher_Magic_Link extends DT_Magic_Url_
                 ],
             ]
         );
+
+        register_rest_route(
+            $namespace, '/' . $this->type . '/close', [
+                [
+                    'methods'             => 'POST',
+                    'callback'            => [ $this, 'close_contact' ],
+                    'permission_callback' => $permission_callback,
+                ],
+            ]
+        );
     }
 
     /**
@@ -736,6 +746,36 @@ class Disciple_Tools_Homescreen_Apps_Dispatcher_Magic_Link extends DT_Magic_Url_
     }
 
     /**
+     * Close a contact
+     */
+    public function close_contact( WP_REST_Request $request ) {
+        $params = $request->get_json_params();
+        $params = dt_recursive_sanitize_array( $params );
+
+        $contact_id = intval( $params['contact_id'] ?? 0 );
+        $reason = $params['reason'] ?? '';
+
+        if ( ! $contact_id || empty( $reason ) ) {
+            return new WP_Error( 'missing_params', 'Contact ID and reason are required', [ 'status' => 400 ] );
+        }
+
+        $result = DT_Posts::update_post( 'contacts', $contact_id, [
+            'overall_status' => 'closed',
+            'reason_closed'  => $reason,
+        ], true, true );
+
+        if ( is_wp_error( $result ) ) {
+            return $result;
+        }
+
+        return [
+            'success'    => true,
+            'contact_id' => $contact_id,
+            'message'    => 'Contact closed successfully',
+        ];
+    }
+
+    /**
      * Custom header styles
      */
     public function header_style() {
@@ -1094,17 +1134,24 @@ class Disciple_Tools_Homescreen_Apps_Dispatcher_Magic_Link extends DT_Magic_Url_
                 border-color: var(--primary-color);
             }
 
+            /* Header buttons - unified size */
+            .header-btn {
+                padding: 8px 14px;
+                border-radius: 4px;
+                font-size: 13px;
+                font-weight: 500;
+                text-decoration: none;
+                border: none;
+                cursor: pointer;
+                transition: background 0.2s ease;
+                display: inline-block;
+                line-height: 1;
+            }
+
             /* Open in D.T. button */
             .open-dt-btn {
-                float: right;
                 background: var(--primary-color);
                 color: white;
-                padding: 4px 10px;
-                border-radius: 4px;
-                font-size: 12px;
-                font-weight: normal;
-                text-decoration: none;
-                transition: background 0.2s ease;
             }
 
             .open-dt-btn:hover {
@@ -1319,21 +1366,52 @@ class Disciple_Tools_Homescreen_Apps_Dispatcher_Magic_Link extends DT_Magic_Url_
                     z-index: 10;
                 }
 
-                /* Mobile navigation */
-                .mobile-nav {
+                /* Mobile header actions */
+                .mobile-header-actions {
                     display: flex;
                     align-items: center;
                     gap: 8px;
+                    margin-left: auto;
+                }
+
+                .mobile-assign-btn {
+                    background: var(--success-color);
+                    color: white;
+                    border: none;
+                    padding: 8px 14px;
+                    border-radius: 4px;
+                    font-size: 13px;
+                    font-weight: 500;
+                    cursor: pointer;
+                }
+
+                /* Mobile contact name row with navigation */
+                .mobile-contact-nav {
+                    display: flex;
+                    align-items: center;
+                    gap: 10px;
+                    margin-bottom: 16px;
+                    padding-bottom: 12px;
+                    border-bottom: 2px solid var(--primary-color);
+                }
+
+                .mobile-contact-nav .contact-name-header {
+                    flex: 1;
+                    margin: 0;
+                    padding: 0;
+                    border: none;
                 }
 
                 .mobile-nav-btn {
                     background: var(--primary-color);
                     color: white;
                     border: none;
-                    padding: 6px 12px;
+                    padding: 8px 12px;
                     border-radius: 4px;
-                    font-size: 12px;
+                    font-size: 13px;
+                    font-weight: 500;
                     cursor: pointer;
+                    flex-shrink: 0;
                 }
 
                 .mobile-nav-btn:disabled {
@@ -1344,28 +1422,17 @@ class Disciple_Tools_Homescreen_Apps_Dispatcher_Magic_Link extends DT_Magic_Url_
                 .mobile-nav-counter {
                     font-size: 12px;
                     color: #666;
-                    font-weight: normal;
-                }
-
-                .mobile-assign-btn {
-                    background: var(--success-color);
-                    color: white;
-                    border: none;
-                    padding: 6px 14px;
-                    border-radius: 4px;
-                    font-size: 13px;
-                    font-weight: 500;
-                    cursor: pointer;
-                    margin-left: auto;
+                    white-space: nowrap;
                 }
 
                 .mobile-close-btn {
                     background: #666;
                     color: white;
                     border: none;
-                    padding: 8px 16px;
+                    padding: 8px 14px;
                     border-radius: 4px;
-                    font-size: 14px;
+                    font-size: 13px;
+                    font-weight: 500;
                     cursor: pointer;
                     margin-left: auto;
                 }
@@ -1392,8 +1459,6 @@ class Disciple_Tools_Homescreen_Apps_Dispatcher_Magic_Link extends DT_Magic_Url_
                 #details-panel .open-dt-btn {
                     order: 2;
                     margin-left: 0;
-                    padding: 6px 10px;
-                    font-size: 11px;
                 }
 
                 .details-grid {
@@ -1414,6 +1479,113 @@ class Disciple_Tools_Homescreen_Apps_Dispatcher_Magic_Link extends DT_Magic_Url_
                 .desktop-only {
                     display: none;
                 }
+            }
+
+            /* Close Contact Modal */
+            .modal-overlay {
+                position: fixed;
+                top: 0;
+                left: 0;
+                right: 0;
+                bottom: 0;
+                background: rgba(0, 0, 0, 0.5);
+                display: none;
+                justify-content: center;
+                align-items: center;
+                z-index: 2000;
+            }
+
+            .modal-overlay.show {
+                display: flex;
+            }
+
+            .modal-content {
+                background: white;
+                border-radius: 12px;
+                padding: 24px;
+                max-width: 400px;
+                width: 90%;
+                box-shadow: 0 10px 40px rgba(0, 0, 0, 0.3);
+            }
+
+            .modal-header {
+                font-size: 18px;
+                font-weight: 600;
+                margin-bottom: 16px;
+                color: #333;
+            }
+
+            .modal-body {
+                margin-bottom: 20px;
+            }
+
+            .modal-body p {
+                color: #666;
+                margin-bottom: 12px;
+                font-size: 14px;
+            }
+
+            .reason-select {
+                width: 100%;
+                padding: 10px 12px;
+                border: 1px solid var(--border-color);
+                border-radius: 6px;
+                font-size: 14px;
+                background: white;
+            }
+
+            .reason-select:focus {
+                outline: none;
+                border-color: var(--primary-color);
+            }
+
+            .modal-footer {
+                display: flex;
+                justify-content: flex-end;
+                gap: 10px;
+            }
+
+            .modal-btn {
+                padding: 10px 20px;
+                border-radius: 6px;
+                font-size: 14px;
+                cursor: pointer;
+                border: none;
+                transition: background 0.2s ease;
+            }
+
+            .modal-btn-cancel {
+                background: #e0e0e0;
+                color: #333;
+            }
+
+            .modal-btn-cancel:hover {
+                background: #d0d0d0;
+            }
+
+            .modal-btn-danger {
+                background: var(--danger-color);
+                color: white;
+            }
+
+            .modal-btn-danger:hover {
+                background: #d32f2f;
+            }
+
+            .modal-btn:disabled {
+                opacity: 0.6;
+                cursor: not-allowed;
+            }
+
+            /* Close/Archive button in header */
+            .close-contact-btn {
+                background: var(--danger-color);
+                color: white;
+                margin-left: 8px;
+            }
+
+            .close-contact-btn:hover {
+                background: #d32f2f;
             }
         </style>
         <?php
@@ -1457,13 +1629,11 @@ class Disciple_Tools_Homescreen_Apps_Dispatcher_Magic_Link extends DT_Magic_Url_
             <div class="panel" id="details-panel">
                 <div class="panel-header">
                     <span class="desktop-only">Contact Details</span>
-                    <a href="#" id="open-in-dt-btn" class="open-dt-btn" target="_blank" style="display: none;">Open in D.T.</a>
+                    <a href="#" id="open-in-dt-btn" class="header-btn open-dt-btn" target="_blank" style="display: none;">Open in D.T.</a>
+                    <button id="close-contact-btn" class="header-btn close-contact-btn" onclick="showCloseModal()" style="display: none;">Archive</button>
 
-                    <!-- Mobile navigation -->
-                    <div class="mobile-nav mobile-only">
-                        <button class="mobile-nav-btn" id="mobile-prev-btn" onclick="navigateContact(-1)" disabled>&larr; Prev</button>
-                        <span class="mobile-nav-counter" id="mobile-counter">0 / 0</span>
-                        <button class="mobile-nav-btn" id="mobile-next-btn" onclick="navigateContact(1)">Next &rarr;</button>
+                    <!-- Mobile header actions -->
+                    <div class="mobile-header-actions mobile-only">
                         <button class="mobile-assign-btn" id="mobile-assign-btn" onclick="showMobileUsersList()">Assign</button>
                     </div>
                 </div>
@@ -1481,6 +1651,23 @@ class Disciple_Tools_Homescreen_Apps_Dispatcher_Magic_Link extends DT_Magic_Url_
             Contact assigned successfully!
         </div>
 
+        <!-- Close Contact Modal -->
+        <div class="modal-overlay" id="close-modal">
+            <div class="modal-content">
+                <div class="modal-header">Close Contact</div>
+                <div class="modal-body">
+                    <p>Select a reason for closing this contact:</p>
+                    <select class="reason-select" id="close-reason-select">
+                        <option value="">-- Select a reason --</option>
+                    </select>
+                </div>
+                <div class="modal-footer">
+                    <button class="modal-btn modal-btn-cancel" onclick="hideCloseModal()">Cancel</button>
+                    <button class="modal-btn modal-btn-danger" id="confirm-close-btn" onclick="confirmCloseContact()" disabled>Close Contact</button>
+                </div>
+            </div>
+        </div>
+
         <?php
     }
 
@@ -1488,13 +1675,16 @@ class Disciple_Tools_Homescreen_Apps_Dispatcher_Magic_Link extends DT_Magic_Url_
      * Footer JavaScript
      */
     public function footer_javascript() {
+        $fields = DT_Posts::get_post_field_settings( 'contacts' );
+
         ?>
         <script>
             const dispatcherApp = {
                 root: '<?php echo esc_url_raw( rest_url() ); ?>',
                 nonce: '<?php echo esc_attr( wp_create_nonce( 'wp_rest' ) ); ?>',
                 parts: <?php echo json_encode( $this->parts ); ?>,
-                site_url: '<?php echo esc_url( site_url() ); ?>'
+                site_url: '<?php echo esc_url( site_url() ); ?>',
+                fields: <?php echo json_encode( $fields ); ?>
             };
 
             let selectedContactId = null;
@@ -1723,11 +1913,6 @@ class Disciple_Tools_Homescreen_Apps_Dispatcher_Magic_Link extends DT_Magic_Url_
             async function selectContact(contactId) {
                 selectedContactId = contactId;
 
-                // Update mobile navigation
-                if (isMobile()) {
-                    updateMobileNav();
-                }
-
                 // Highlight selected contact
                 document.querySelectorAll('.contact-item').forEach(el => {
                     el.classList.toggle('selected', parseInt(el.dataset.contactId) === contactId);
@@ -1737,6 +1922,9 @@ class Disciple_Tools_Homescreen_Apps_Dispatcher_Magic_Link extends DT_Magic_Url_
                 const openDtBtn = document.getElementById('open-in-dt-btn');
                 openDtBtn.href = `${dispatcherApp.site_url}/contacts/${contactId}`;
                 openDtBtn.style.display = 'inline-block';
+
+                // Show the close button
+                document.getElementById('close-contact-btn').style.display = 'inline-block';
 
                 // Show loading
                 const detailsContainer = document.getElementById('contact-details');
@@ -1812,10 +2000,22 @@ class Disciple_Tools_Homescreen_Apps_Dispatcher_Magic_Link extends DT_Magic_Url_
                     `).join('') :
                     '<p class="detail-empty">No comments or activity yet</p>';
 
+                // Mobile navigation with contact name
+                const currentIndex = getCurrentContactIndex();
+                const total = contacts.length;
+                const mobileNavHtml = isMobile() ? `
+                    <div class="mobile-contact-nav">
+                        <button class="mobile-nav-btn" id="mobile-prev-btn" onclick="navigateContact(-1)" ${currentIndex <= 0 ? 'disabled' : ''}>&larr;</button>
+                        <h2 class="contact-name-header">${escapeHtml(contact.name)}</h2>
+                        <span class="mobile-nav-counter">${currentIndex + 1}/${total}</span>
+                        <button class="mobile-nav-btn" id="mobile-next-btn" onclick="navigateContact(1)" ${currentIndex >= total - 1 ? 'disabled' : ''}>&rarr;</button>
+                    </div>
+                ` : `<h2 class="contact-name-header">${escapeHtml(contact.name)}</h2>`;
+
                 container.innerHTML = `
                     <div class="details-grid">
                         <div class="details-column">
-                            <h2 class="contact-name-header">${escapeHtml(contact.name)}</h2>
+                            ${mobileNavHtml}
                             ${tilesHtml}
                             ${createdHtml}
                         </div>
@@ -1917,7 +2117,6 @@ class Disciple_Tools_Homescreen_Apps_Dispatcher_Magic_Link extends DT_Magic_Url_
                                 selectedContactId = null;
                                 document.getElementById('contact-details').innerHTML =
                                     '<div class="empty-state"><div class="empty-state-icon">🎉</div><p>All contacts have been dispatched!</p></div>';
-                                updateMobileNav();
                             }
                             renderContacts();
                         } else {
@@ -1929,6 +2128,7 @@ class Disciple_Tools_Homescreen_Apps_Dispatcher_Magic_Link extends DT_Magic_Url_
                                 document.getElementById('contact-details').innerHTML =
                                     '<div class="empty-state"><div class="empty-state-icon">&#128100;</div><p>Select a contact to view details</p></div>';
                                 document.getElementById('open-in-dt-btn').style.display = 'none';
+                                document.getElementById('close-contact-btn').style.display = 'none';
                                 document.getElementById('users-list').innerHTML =
                                     '<div class="empty-state"><div class="empty-state-icon">👉</div><p>Select a contact to see matching multipliers</p></div>';
                                 document.getElementById('users-count').textContent = '(0)';
@@ -2199,15 +2399,6 @@ class Disciple_Tools_Homescreen_Apps_Dispatcher_Magic_Link extends DT_Magic_Url_
                 return contacts.findIndex(c => parseInt(c.ID) === parseInt(selectedContactId));
             }
 
-            function updateMobileNav() {
-                const currentIndex = getCurrentContactIndex();
-                const total = contacts.length;
-
-                document.getElementById('mobile-counter').textContent = `${currentIndex + 1} / ${total}`;
-                document.getElementById('mobile-prev-btn').disabled = currentIndex <= 0;
-                document.getElementById('mobile-next-btn').disabled = currentIndex >= total - 1;
-            }
-
             function navigateContact(direction) {
                 const currentIndex = getCurrentContactIndex();
                 const newIndex = currentIndex + direction;
@@ -2229,6 +2420,126 @@ class Disciple_Tools_Homescreen_Apps_Dispatcher_Magic_Link extends DT_Magic_Url_
             function autoSelectFirstContactOnMobile() {
                 if (isMobile() && contacts.length > 0 && !selectedContactId) {
                     selectContact(contacts[0].ID);
+                }
+            }
+
+            // Close Contact Modal Functions
+            function showCloseModal() {
+                if (!selectedContactId) return;
+
+                // Populate the reasons dropdown from dispatcherApp.fields
+                const reasonSelect = document.getElementById('close-reason-select');
+                const reasonField = dispatcherApp.fields.reason_closed;
+
+                // Clear existing options except the first one
+                reasonSelect.innerHTML = '<option value="">-- Select a reason --</option>';
+
+                if (reasonField && reasonField.default) {
+                    Object.entries(reasonField.default).forEach(([key, option]) => {
+                        if (!option.deleted) {
+                            const optionEl = document.createElement('option');
+                            optionEl.value = key;
+                            optionEl.textContent = option.label || key;
+                            reasonSelect.appendChild(optionEl);
+                        }
+                    });
+                }
+
+                // Enable/disable confirm button based on selection
+                reasonSelect.addEventListener('change', function() {
+                    document.getElementById('confirm-close-btn').disabled = !this.value;
+                });
+
+                // Reset the confirm button state
+                document.getElementById('confirm-close-btn').disabled = true;
+
+                // Show the modal
+                document.getElementById('close-modal').classList.add('show');
+            }
+
+            function hideCloseModal() {
+                document.getElementById('close-modal').classList.remove('show');
+                document.getElementById('close-reason-select').value = '';
+                document.getElementById('confirm-close-btn').disabled = true;
+            }
+
+            async function confirmCloseContact() {
+                const reason = document.getElementById('close-reason-select').value;
+                if (!reason || !selectedContactId) return;
+
+                const confirmBtn = document.getElementById('confirm-close-btn');
+                confirmBtn.disabled = true;
+                confirmBtn.textContent = 'Closing...';
+
+                try {
+                    const response = await fetch(
+                        `${dispatcherApp.root}${dispatcherApp.parts.root}/v1/${dispatcherApp.parts.type}/close`,
+                        {
+                            method: 'POST',
+                            headers: {
+                                'Content-Type': 'application/json',
+                                'X-WP-Nonce': dispatcherApp.nonce
+                            },
+                            body: JSON.stringify({
+                                contact_id: selectedContactId,
+                                reason: reason,
+                                parts: dispatcherApp.parts
+                            })
+                        }
+                    );
+
+                    const result = await response.json();
+
+                    if (result.success) {
+                        // Get current index before removing for mobile navigation
+                        const currentIndex = getCurrentContactIndex();
+                        const closedContactId = selectedContactId;
+
+                        // Remove contact from list
+                        contacts = contacts.filter(c => parseInt(c.ID) !== parseInt(closedContactId));
+
+                        // Hide the modal
+                        hideCloseModal();
+
+                        // Handle mobile: navigate to next contact
+                        if (isMobile()) {
+                            if (contacts.length > 0) {
+                                const newIndex = Math.min(currentIndex, contacts.length - 1);
+                                selectContact(contacts[newIndex].ID);
+                            } else {
+                                selectedContactId = null;
+                                document.getElementById('contact-details').innerHTML =
+                                    '<div class="empty-state"><div class="empty-state-icon">🎉</div><p>All contacts have been dispatched!</p></div>';
+                                document.getElementById('close-contact-btn').style.display = 'none';
+                            }
+                            renderContacts();
+                        } else {
+                            // Desktop behavior
+                            renderContacts();
+
+                            // Clear details and users list
+                            document.getElementById('contact-details').innerHTML =
+                                '<div class="empty-state"><div class="empty-state-icon">&#128100;</div><p>Select a contact to view details</p></div>';
+                            document.getElementById('open-in-dt-btn').style.display = 'none';
+                            document.getElementById('close-contact-btn').style.display = 'none';
+                            document.getElementById('users-list').innerHTML =
+                                '<div class="empty-state"><div class="empty-state-icon">👉</div><p>Select a contact to see matching multipliers</p></div>';
+                            document.getElementById('users-count').textContent = '(0)';
+                            selectedContactId = null;
+                            selectedContactLocationIds = [];
+                            selectedContactLanguages = [];
+                            users = [];
+                        }
+
+                        showSuccessToast('Contact closed successfully!');
+                    } else {
+                        alert('Failed to close contact: ' + (result.message || result.data?.message || 'Unknown error'));
+                    }
+                } catch (error) {
+                    console.error('Error closing contact:', error);
+                    alert('Error closing contact');
+                } finally {
+                    confirmBtn.textContent = 'Close Contact';
                 }
             }
         </script>
