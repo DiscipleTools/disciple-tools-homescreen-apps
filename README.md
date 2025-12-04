@@ -2,54 +2,75 @@
 
 # Disciple.Tools - Homescreen Apps
 
-The Disciple.Tools Homescreen Apps plugin enhances the Disciple.Tools platform by adding various applications to the homescreen, making common tasks more accessible to users.
+Add useful apps to your Disciple.Tools homescreen.
 
-## Purpose
+<img width="311" height="675" alt="image" src="https://github.com/user-attachments/assets/09fa7f20-96d8-4a62-9cf3-971a01b5fdca" />
 
-This plugin extends the functionality of Disciple.Tools by providing quick access to frequently used features and external resources directly from the homescreen. It simplifies workflows for users by:
 
-1. Providing magic link templates for creating new contacts
-2. Offering a coaching view to manage contacts you are coaching
-3. Adding direct links to external resources like Bible apps, Zume Training, and WAHA
 
-The plugin is designed to improve user experience by reducing the number of clicks needed to access common features and integrating external resources directly into the Disciple.Tools interface.
+## Apps
 
-## Usage
+### Create Contact
 
-#### Will Do
+Quickly create a new contact from your phone.
 
-- Add magic link templates for creating new contacts
-- Provide a coaching view to see and manage contacts you are coaching
-- Add direct links to external resources (Bible, Zume Training, WAHA)
-- Allow users to create new groups via magic links
-- Make common tasks more accessible from the homescreen
+<img width="309" height="555" alt="Screenshot 2025-12-04 at 11 07 55 AM" src="https://github.com/user-attachments/assets/899ce90e-29a5-4315-8e2c-90668c3718cf" />
 
-#### Will Not Do
 
-- Replace core Disciple.Tools functionality
-- Work without the Disciple.Tools theme
-- Provide full access to all Disciple.Tools features
+---
 
-## Requirements
+### Create Group
 
-- Disciple.Tools Theme installed on a WordPress Server (version 1.19 or higher)
+Quickly create a new group from your phone.
 
-## Installing
+<img width="309" height="555" alt="Screenshot 2025-12-04 at 11 08 42 AM" src="https://github.com/user-attachments/assets/7b3f4f71-a680-4da3-b32d-4f83405b74e6" />
 
-1. Install as a standard Disciple.Tools/WordPress plugin in the system Admin/Plugins area
-2. Activate the plugin
-3. The homescreen apps will automatically appear on the Disciple.Tools homescreen
 
-## Contribution
+---
 
-Contributions welcome. You can report issues and bugs in the
-[Issues](https://github.com/DiscipleTools/disciple-tools-homescreen-apps/issues) section of the repo. You can present ideas
-in the [Discussions](https://github.com/DiscipleTools/disciple-tools-homescreen-apps/discussions) section of the repo. And
-code contributions are welcome using the [Pull Request](https://github.com/DiscipleTools/disciple-tools-homescreen-apps/pulls)
-system for git. For a more details on contribution see the
-[contribution guidelines](https://github.com/DiscipleTools/disciple-tools-homescreen-apps/blob/master/CONTRIBUTING.md).
+### My Coaching
 
-## Screenshot
-<img width="622" height="1382" alt="image" src="https://github.com/user-attachments/assets/34108cce-beae-4664-bd68-cb9a5e4e6e62" />
+View and manage the contacts you are coaching.
+
+<img width="309" height="632" alt="Screenshot 2025-12-04 at 11 11 58 AM" src="https://github.com/user-attachments/assets/dfd047ea-035d-48ed-ad3c-8e95823566a9" /><img width="309" height="632" alt="Screenshot 2025-12-04 at 11 11 35 AM" src="https://github.com/user-attachments/assets/4edb61f0-2e9f-477f-970b-d20e76e51f48" />
+
+
+---
+
+### Dispatcher
+
+Assign unassigned contacts to team members using drag-and-drop.
+
+<img width="1114" height="780" alt="Screenshot 2025-12-04 at 11 14 26 AM" src="https://github.com/user-attachments/assets/81573943-bacf-4253-935f-3cb2e8870c36" />
+
+
+
+---
+
+### Bible
+
+Quick link to Bible.com.
+
+---
+
+### WAHA
+
+Quick link to the WAHA app.
+
+---
+
+### Zume Training
+
+Quick link to Zume Training.
+
+---
+
+
+## Contributing
+
+- [Report issues](https://github.com/DiscipleTools/disciple-tools-homescreen-apps/issues)
+- [Discuss ideas](https://github.com/DiscipleTools/disciple-tools-homescreen-apps/discussions)
+- [Submit pull requests](https://github.com/DiscipleTools/disciple-tools-homescreen-apps/pulls)
+
 
 
