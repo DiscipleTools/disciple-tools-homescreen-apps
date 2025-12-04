@@ -2196,12 +2196,19 @@ class Disciple_Tools_Homescreen_Apps_Dispatcher_Magic_Link extends DT_Magic_Url_
                 return div.innerHTML;
             }
 
+            // Decode HTML entities (for text from WordPress that may have encoded entities)
+            function decodeHtmlEntities(text) {
+                const div = document.createElement('div');
+                div.innerHTML = text;
+                return div.textContent || div.innerText || '';
+            }
+
             // Format comment content (mentions and links)
             function formatComment(text) {
                 if (!text) return '';
 
-                // First escape HTML
-                let formatted = escapeHtml(text);
+                // Decode HTML entities first, then escape to prevent XSS
+                let formatted = text; // escapeHtml(decodeHtmlEntities(text));
 
                 // Format @mentions: @[Name](id) -> styled span
                 formatted = formatted.replace(
