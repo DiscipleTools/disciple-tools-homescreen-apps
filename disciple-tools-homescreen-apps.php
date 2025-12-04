@@ -93,6 +93,7 @@ class Disciple_Tools_Homescreen_Apps {
         require_once( 'magic-link/link-zume.php' );
         require_once( 'magic-link/link-waha.php' );
         require_once( 'magic-link/my-coaching.php' );
+        require_once( 'magic-link/my-contacts.php' );
 //        require_once( 'magic-link/dispatcher-contacts.php' );
         require_once( 'magic-link/dispatcher-magic-link.php' );
         $this->i18n();
