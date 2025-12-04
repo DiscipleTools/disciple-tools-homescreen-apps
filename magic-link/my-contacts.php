@@ -59,6 +59,7 @@ class Disciple_Tools_Homescreen_Apps_My_Contacts_Magic_Link extends DT_Magic_Url
         add_action( 'dt_blank_body', [ $this, 'body' ] );
         add_filter( 'dt_magic_url_base_allowed_css', [ $this, 'dt_magic_url_base_allowed_css' ], 10, 1 );
         add_filter( 'dt_magic_url_base_allowed_js', [ $this, 'dt_magic_url_base_allowed_js' ], 10, 1 );
+        add_action( 'wp_enqueue_scripts', [ $this, 'wp_enqueue_scripts' ] );
     }
 
     public function dt_settings_apps_list( $apps_list ) {
@@ -73,11 +74,44 @@ class Disciple_Tools_Homescreen_Apps_My_Contacts_Magic_Link extends DT_Magic_Url
     }
 
     public function dt_magic_url_base_allowed_js( $allowed_js ) {
+        $allowed_js[] = 'dt-web-components';
         return $allowed_js;
     }
 
     public function dt_magic_url_base_allowed_css( $allowed_css ) {
+        $allowed_css[] = 'dt-web-components-css';
         return $allowed_css;
+    }
+
+    /**
+     * Enqueue DT web components for inline field editing
+     */
+    public function wp_enqueue_scripts() {
+        $theme_uri = get_template_directory_uri();
+        $theme_dir = get_template_directory();
+
+        // Enqueue DT web components JS
+        $components_js = 'dt-assets/build/components/index.js';
+        if ( file_exists( $theme_dir . '/' . $components_js ) ) {
+            wp_enqueue_script(
+                'dt-web-components',
+                $theme_uri . '/' . $components_js,
+                [],
+                filemtime( $theme_dir . '/' . $components_js ),
+                true
+            );
+        }
+
+        // Enqueue DT web components CSS
+        $components_css = 'dt-assets/build/css/light.min.css';
+        if ( file_exists( $theme_dir . '/' . $components_css ) ) {
+            wp_enqueue_style(
+                'dt-web-components-css',
+                $theme_uri . '/' . $components_css,
+                [],
+                filemtime( $theme_dir . '/' . $components_css )
+            );
+        }
     }
 
     /**
@@ -121,6 +155,26 @@ class Disciple_Tools_Homescreen_Apps_My_Contacts_Magic_Link extends DT_Magic_Url
                 [
                     'methods'             => 'POST',
                     'callback'            => [ $this, 'get_users_for_mention' ],
+                    'permission_callback' => [ $this, 'check_permission' ],
+                ],
+            ]
+        );
+
+        register_rest_route(
+            $namespace, '/' . $this->type . '/update-field', [
+                [
+                    'methods'             => 'POST',
+                    'callback'            => [ $this, 'update_field' ],
+                    'permission_callback' => [ $this, 'check_permission' ],
+                ],
+            ]
+        );
+
+        register_rest_route(
+            $namespace, '/' . $this->type . '/field-options', [
+                [
+                    'methods'             => 'POST',
+                    'callback'            => [ $this, 'get_field_options' ],
                     'permission_callback' => [ $this, 'check_permission' ],
                 ],
             ]
@@ -335,15 +389,55 @@ class Disciple_Tools_Homescreen_Apps_My_Contacts_Magic_Link extends DT_Magic_Url
             }
 
             $field_order = $field_setting['in_create_form'] ?? 100;
-            $tiles_with_fields[ $tile_key ]['fields'][] = [
+            $field_type = $field_setting['type'] ?? 'text';
+
+            // Prepare raw value for editing
+            $raw_value = $this->prepare_raw_value( $value, $field_type );
+
+            // Prepare options for select fields
+            $options = [];
+            if ( in_array( $field_type, [ 'key_select', 'multi_select' ] ) && isset( $field_setting['default'] ) ) {
+                foreach ( $field_setting['default'] as $option_key => $option_data ) {
+                    // Skip deleted or hidden options
+                    if ( ! empty( $option_data['deleted'] ) || ! empty( $option_data['hidden'] ) ) {
+                        continue;
+                    }
+                    // Ensure we have a valid key
+                    if ( $option_key === '' || $option_key === null ) {
+                        continue;
+                    }
+                    $label = $option_data['label'] ?? (string) $option_key;
+                    // Ensure label is never empty
+                    if ( empty( $label ) ) {
+                        $label = (string) $option_key;
+                    }
+                    $options[] = [
+                        'id'    => (string) $option_key,
+                        'label' => $label,
+                        'color' => $option_data['color'] ?? null,
+                        'icon'  => $option_data['icon'] ?? null,
+                    ];
+                }
+            }
+
+            $field_data = [
                 'key'       => $field_key,
                 'label'     => $field_setting['name'] ?? $field_key,
                 'value'     => $formatted_value,
-                'type'      => $field_setting['type'] ?? 'text',
+                'raw_value' => $raw_value,
+                'type'      => $field_type,
+                'options'   => $options,
                 'icon'      => $field_setting['icon'] ?? '',
                 'font_icon' => $field_setting['font-icon'] ?? '',
                 'order'     => is_numeric( $field_order ) ? intval( $field_order ) : 100,
             ];
+
+            // Add post_type for connection fields
+            if ( $field_type === 'connection' && isset( $field_setting['post_type'] ) ) {
+                $field_data['post_type'] = $field_setting['post_type'];
+            }
+
+            $tiles_with_fields[ $tile_key ]['fields'][] = $field_data;
         }
 
         // Sort tiles by order
@@ -666,6 +760,192 @@ class Disciple_Tools_Homescreen_Apps_My_Contacts_Magic_Link extends DT_Magic_Url
     }
 
     /**
+     * Prepare raw value for editing (JSON-safe format for DT components)
+     */
+    private function prepare_raw_value( $value, $field_type ) {
+        if ( $value === null || $value === '' ) {
+            return null;
+        }
+
+        switch ( $field_type ) {
+            case 'text':
+            case 'textarea':
+            case 'number':
+                return is_string( $value ) || is_numeric( $value ) ? $value : '';
+
+            case 'boolean':
+                return (bool) $value;
+
+            case 'key_select':
+                return $value['key'] ?? '';
+
+            case 'multi_select':
+            case 'tags':
+                // Value should be an array of string IDs for the component
+                if ( is_array( $value ) ) {
+                    $result = [];
+                    foreach ( $value as $item ) {
+                        if ( is_string( $item ) ) {
+                            $result[] = $item;
+                        } elseif ( is_array( $item ) && isset( $item['value'] ) ) {
+                            $result[] = $item['value'];
+                        } elseif ( is_array( $item ) && isset( $item['key'] ) ) {
+                            $result[] = $item['key'];
+                        }
+                    }
+                    return $result;
+                }
+                return [];
+
+            case 'communication_channel':
+                if ( is_array( $value ) ) {
+                    return array_values( $value );
+                }
+                return [];
+
+            case 'connection':
+                if ( is_array( $value ) ) {
+                    return array_map( function( $item ) {
+                        return [
+                            'id'     => (int) ( $item['ID'] ?? 0 ),
+                            'label'  => $item['post_title'] ?? '',
+                            'link'   => $item['permalink'] ?? '',
+                            'status' => $item['status'] ?? null,
+                        ];
+                    }, $value );
+                }
+                return [];
+
+            case 'location':
+            case 'location_meta':
+                if ( is_array( $value ) ) {
+                    return array_values( $value );
+                }
+                return [];
+
+            case 'user_select':
+                if ( isset( $value['id'] ) ) {
+                    return $value['id'];
+                }
+                return null;
+
+            case 'date':
+                if ( isset( $value['timestamp'] ) ) {
+                    return $value['timestamp'];
+                }
+                return null;
+
+            case 'link':
+                if ( is_array( $value ) ) {
+                    return array_values( $value );
+                }
+                return [];
+
+            default:
+                return $value;
+        }
+    }
+
+    /**
+     * Format a value for DT_Posts::update_post based on field type
+     */
+    private function format_value_for_update( $value, $field_type, $contact_id, $field_key ) {
+        switch ( $field_type ) {
+            case 'text':
+            case 'textarea':
+            case 'number':
+            case 'boolean':
+            case 'key_select':
+                // These types can be passed directly
+                return $value;
+
+            case 'date':
+                // Date expects a timestamp or date string
+                return $value;
+
+            case 'multi_select':
+            case 'tags':
+                // multi_select and tags expect: ['values' => [['value' => 'option1'], ['value' => 'option2']]]
+                // The component uses '-' prefix to mark items for deletion (e.g., ["-tag1", "tag2"])
+                $new_values = is_array( $value ) ? $value : [];
+
+                $update_values = [];
+                foreach ( $new_values as $v ) {
+                    // Check for deletion prefix (component marks deleted items with '-' prefix)
+                    if ( is_string( $v ) && strpos( $v, '-' ) === 0 ) {
+                        $update_values[] = [ 'value' => substr( $v, 1 ), 'delete' => true ];
+                    } else {
+                        $update_values[] = [ 'value' => $v ];
+                    }
+                }
+
+                return [ 'values' => $update_values ];
+
+            case 'communication_channel':
+                // communication_channel is more complex - for now return as-is
+                // Full implementation would need to track meta_ids for updates
+                if ( is_array( $value ) ) {
+                    return $value;
+                }
+                return [];
+
+            case 'connection':
+                // connection expects: ['values' => [['value' => post_id]]]
+                // Items with 'delete' property should be removed
+                if ( is_array( $value ) ) {
+                    $formatted = [];
+                    foreach ( $value as $item ) {
+                        if ( isset( $item['id'] ) ) {
+                            $entry = [ 'value' => $item['id'] ];
+                            if ( ! empty( $item['delete'] ) ) {
+                                $entry['delete'] = true;
+                            }
+                            $formatted[] = $entry;
+                        } elseif ( is_numeric( $item ) ) {
+                            $formatted[] = [ 'value' => intval( $item ) ];
+                        }
+                    }
+                    return [ 'values' => $formatted ];
+                }
+                return [ 'values' => [] ];
+
+            case 'location':
+            case 'location_meta':
+                // location expects: ['values' => [['value' => grid_id]]]
+                // Items with 'delete' property should be removed
+                if ( is_array( $value ) ) {
+                    $formatted = [];
+                    foreach ( $value as $item ) {
+                        $entry = null;
+                        if ( isset( $item['id'] ) ) {
+                            $entry = [ 'value' => $item['id'] ];
+                        } elseif ( isset( $item['grid_id'] ) ) {
+                            $entry = [ 'value' => $item['grid_id'] ];
+                        }
+                        if ( $entry ) {
+                            if ( ! empty( $item['delete'] ) ) {
+                                $entry['delete'] = true;
+                            }
+                            $formatted[] = $entry;
+                        }
+                    }
+                    return [ 'values' => $formatted ];
+                }
+                return [ 'values' => [] ];
+
+            case 'user_select':
+                // user_select expects a user ID string like "user-123"
+                if ( is_numeric( $value ) ) {
+                    return 'user-' . $value;
+                }
+                return $value;
+
+            default:
+                return $value;
+        }
+    }
+
+    /**
      * Add a comment to a contact
      */
     public function add_comment( WP_REST_Request $request ) {
@@ -723,6 +1003,155 @@ class Disciple_Tools_Homescreen_Apps_My_Contacts_Magic_Link extends DT_Magic_Url
 
         return [
             'users' => $users,
+        ];
+    }
+
+    /**
+     * Update a field on a contact
+     */
+    public function update_field( WP_REST_Request $request ) {
+        $params = $request->get_json_params();
+        $params = dt_recursive_sanitize_array( $params );
+
+        $owner_contact_id = $this->get_post_id_from_magic_key( $params['parts']['meta_key'], $params['parts']['public_key'] );
+        if ( ! $owner_contact_id ) {
+            return new WP_Error( 'invalid_key', 'Invalid magic link', [ 'status' => 403 ] );
+        }
+
+        $contact_id = intval( $params['contact_id'] ?? 0 );
+        $field_key = $params['field_key'] ?? '';
+        $field_value = $params['field_value'] ?? null;
+
+        if ( ! $contact_id || empty( $field_key ) ) {
+            return new WP_Error( 'missing_params', 'Contact ID and field key are required', [ 'status' => 400 ] );
+        }
+
+        // Verify access
+        if ( ! $this->verify_contact_access( $owner_contact_id, $contact_id ) ) {
+            return new WP_Error( 'access_denied', 'You do not have access to this contact', [ 'status' => 403 ] );
+        }
+
+        // Get field settings to determine field type
+        $field_settings = DT_Posts::get_post_field_settings( 'contacts' );
+        $field_setting = $field_settings[ $field_key ] ?? [];
+        $field_type = $field_setting['type'] ?? 'text';
+
+        // Transform the value to the format DT_Posts expects
+        $formatted_update_value = $this->format_value_for_update( $field_value, $field_type, $contact_id, $field_key );
+
+        // Update the field
+        $update_data = [ $field_key => $formatted_update_value ];
+        $result = DT_Posts::update_post( 'contacts', $contact_id, $update_data, true, false );
+
+        if ( is_wp_error( $result ) ) {
+            return $result;
+        }
+
+        // Get the updated field value
+        $updated_value = $result[ $field_key ] ?? null;
+        $formatted_value = $this->format_field_value( $updated_value, $field_setting );
+
+        return [
+            'success'         => true,
+            'contact_id'      => $contact_id,
+            'field_key'       => $field_key,
+            'value'           => $formatted_value,
+            'raw_value'       => $updated_value,
+        ];
+    }
+
+    /**
+     * Get field options for typeahead components (connections, locations, tags)
+     */
+    public function get_field_options( WP_REST_Request $request ) {
+        $params = $request->get_json_params();
+        $params = dt_recursive_sanitize_array( $params );
+
+        $owner_contact_id = $this->get_post_id_from_magic_key( $params['parts']['meta_key'], $params['parts']['public_key'] );
+        if ( ! $owner_contact_id ) {
+            return new WP_Error( 'invalid_key', 'Invalid magic link', [ 'status' => 403 ] );
+        }
+
+        $field_key = $params['field'] ?? '';
+        $query = $params['query'] ?? '';
+        $post_type = $params['post_type'] ?? 'contacts';
+
+        if ( empty( $field_key ) ) {
+            return new WP_Error( 'missing_field', 'Field key is required', [ 'status' => 400 ] );
+        }
+
+        // Get field settings
+        $field_settings = DT_Posts::get_post_field_settings( 'contacts' );
+        $field_setting = $field_settings[ $field_key ] ?? [];
+        $field_type = $field_setting['type'] ?? '';
+
+        $options = [];
+
+        switch ( $field_type ) {
+            case 'connection':
+                // Get the post type this field connects to
+                $connected_post_type = $field_setting['post_type'] ?? 'contacts';
+
+                // Use get_viewable_compact which handles sorting properly
+                // (recently viewed first for empty search, recently modified for search)
+                $search_results = DT_Posts::get_viewable_compact( $connected_post_type, $query, [
+                    'field_key' => $field_key,
+                ] );
+
+                if ( ! is_wp_error( $search_results ) && isset( $search_results['posts'] ) ) {
+                    foreach ( $search_results['posts'] as $post ) {
+                        $status = null;
+                        if ( isset( $post['status'] ) ) {
+                            $status = $post['status'];
+                        }
+                        $options[] = [
+                            'id' => (int) $post['ID'],
+                            'label' => $post['name'] ?? '',
+                            'link' => get_permalink( $post['ID'] ),
+                            'status' => $status,
+                        ];
+                    }
+                }
+                break;
+
+            case 'location':
+            case 'location_meta':
+                // Search location grid
+                $search_results = Disciple_Tools_Mapping_Queries::search_location_grid_by_name( [
+                    's' => $query,
+                    'limit' => 20,
+                ] );
+
+                if ( ! empty( $search_results ) && isset( $search_results['location_grid'] ) ) {
+                    foreach ( $search_results['location_grid'] as $location ) {
+                        $options[] = [
+                            'id' => strval( $location['grid_id'] ?? $location['ID'] ),
+                            'label' => $location['name'] ?? $location['label'] ?? '',
+                        ];
+                    }
+                }
+                break;
+
+            case 'tags':
+                // Get existing tags for this field
+                $existing_tags = Disciple_Tools_Posts::get_multi_select_options( 'contacts', $field_key, false );
+                if ( ! empty( $existing_tags ) ) {
+                    foreach ( $existing_tags as $tag ) {
+                        // Filter by query if provided
+                        if ( empty( $query ) || stripos( $tag, $query ) !== false ) {
+                            $options[] = [
+                                'id' => $tag,
+                                'label' => $tag,
+                            ];
+                        }
+                    }
+                }
+                break;
+        }
+
+        return [
+            'success' => true,
+            'options' => $options,
         ];
     }
 
@@ -955,6 +1384,64 @@ class Disciple_Tools_Homescreen_Apps_My_Contacts_Magic_Link extends DT_Magic_Url
             .detail-empty {
                 color: #999;
                 font-style: italic;
+            }
+
+            /* Edit mode */
+            .edit-icon {
+                cursor: pointer;
+                opacity: 0.4;
+                margin-left: 6px;
+                font-size: 12px;
+                transition: opacity 0.2s ease;
+            }
+
+            .edit-icon:hover {
+                opacity: 1;
+                color: var(--primary-color);
+            }
+
+            .detail-section .edit-mode {
+                display: none;
+            }
+
+            .detail-section.editing .view-mode {
+                display: none;
+            }
+
+            .detail-section.editing .edit-mode {
+                display: block;
+            }
+
+            .detail-section.saving .edit-mode {
+                opacity: 0.6;
+                pointer-events: none;
+            }
+
+            .field-saving-spinner {
+                display: inline-block;
+                width: 12px;
+                height: 12px;
+                border: 2px solid var(--border-color);
+                border-top-color: var(--primary-color);
+                border-radius: 50%;
+                animation: spin 1s linear infinite;
+                margin-left: 8px;
+                vertical-align: middle;
+            }
+
+            /* DT Component Overrides for Magic Link */
+            .edit-mode dt-text,
+            .edit-mode dt-textarea,
+            .edit-mode dt-number,
+            .edit-mode dt-single-select,
+            .edit-mode dt-multi-select,
+            .edit-mode dt-date,
+            .edit-mode dt-multi-text,
+            .edit-mode dt-tags,
+            .edit-mode dt-connection,
+            .edit-mode dt-location {
+                display: block;
+                width: 100%;
             }
 
             /* Activity/Comments list */
@@ -1317,6 +1804,49 @@ class Disciple_Tools_Homescreen_Apps_My_Contacts_Magic_Link extends DT_Magic_Url
                 loadContacts();
             });
 
+            // Handle dt:get-data events from DT web components (for typeahead search)
+            document.addEventListener('dt:get-data', async function(e) {
+                if (!e.detail) return;
+
+                const { field, query, onSuccess, onError, postType } = e.detail;
+
+                try {
+                    const response = await fetch(
+                        `${myContactsApp.root}${myContactsApp.parts.root}/v1/${myContactsApp.parts.type}/field-options`,
+                        {
+                            method: 'POST',
+                            headers: {
+                                'Content-Type': 'application/json',
+                                'X-WP-Nonce': myContactsApp.nonce
+                            },
+                            body: JSON.stringify({
+                                parts: myContactsApp.parts,
+                                field: field,
+                                query: query || '',
+                                post_type: postType || 'contacts'
+                            })
+                        }
+                    );
+
+                    const data = await response.json();
+
+                    if (data.success && data.options) {
+                        if (onSuccess && typeof onSuccess === 'function') {
+                            onSuccess(data.options);
+                        }
+                    } else {
+                        if (onError && typeof onError === 'function') {
+                            onError(new Error(data.message || 'Failed to fetch options'));
+                        }
+                    }
+                } catch (err) {
+                    console.error('Error fetching field options:', err);
+                    if (onError && typeof onError === 'function') {
+                        onError(err);
+                    }
+                }
+            });
+
             // Load contacts
             async function loadContacts() {
                 try {
@@ -1456,12 +1986,7 @@ class Disciple_Tools_Homescreen_Apps_My_Contacts_Magic_Link extends DT_Magic_Url
                     contact.tiles.map(tile => `
                         <div class="detail-tile">
                             <div class="tile-header">${escapeHtml(tile.label)}</div>
-                            ${tile.fields.map(field => `
-                                <div class="detail-section">
-                                    <div class="detail-label">${renderFieldIcon(field)}${escapeHtml(field.label)}</div>
-                                    <div class="detail-value ${!field.value ? 'empty-value' : ''}">${field.value ? escapeHtml(field.value) : '-'}</div>
-                                </div>
-                            `).join('')}
+                            ${tile.fields.map(field => renderEditableField(field, contact.ID)).join('')}
                         </div>
                     `).join('') :
                     '<p class="detail-empty">No contact information available</p>';
@@ -1522,6 +2047,9 @@ class Disciple_Tools_Homescreen_Apps_My_Contacts_Magic_Link extends DT_Magic_Url
                         </div>
                     </div>
                 `;
+
+                // Initialize DT components with their data (value, options)
+                initializeDTComponents();
 
                 // Initialize mention listeners
                 initMentionListeners();
@@ -1737,6 +2265,269 @@ class Disciple_Tools_Homescreen_Apps_My_Contacts_Magic_Link extends DT_Magic_Url
             function hideMobileDetails() {
                 document.getElementById('details-panel').classList.remove('mobile-visible');
                 document.getElementById('contacts-panel').classList.remove('mobile-hidden');
+            }
+
+            // Store field data for programmatic initialization of components
+            window.fieldDataStore = window.fieldDataStore || {};
+
+            // Render an editable field with view and edit modes
+            function renderEditableField(field, contactId) {
+                const rawValue = field.raw_value;
+
+                // Determine default based on field type (arrays for multi-value fields)
+                const isArrayField = ['multi_select', 'tags', 'communication_channel', 'connection', 'location', 'location_meta', 'link'].includes(field.type);
+                const defaultValue = isArrayField ? [] : '';
+                const valueForJson = (rawValue !== null && rawValue !== undefined) ? rawValue : defaultValue;
+
+                // Filter out any options with invalid IDs or labels, and ensure all values are strings
+                const validOptions = (field.options || []).filter(opt =>
+                    opt &&
+                    opt.id !== null &&
+                    opt.id !== undefined &&
+                    opt.id !== '' &&
+                    opt.label !== null &&
+                    opt.label !== undefined &&
+                    opt.label !== ''
+                ).map(opt => ({
+                    // Ensure id and label are strings
+                    id: String(opt.id),
+                    label: String(opt.label),
+                    color: opt.color || null,
+                    icon: opt.icon || null
+                }));
+
+                // Store field data for later initialization
+                const fieldId = `field-${contactId}-${field.key}`;
+                window.fieldDataStore[fieldId] = {
+                    value: valueForJson,
+                    options: validOptions,
+                    type: field.type
+                };
+
+                return `
+                    <div class="detail-section" data-field-key="${escapeHtml(field.key)}" data-field-type="${escapeHtml(field.type)}" data-contact-id="${contactId}">
+                        <div class="detail-label">
+                            ${renderFieldIcon(field)}${escapeHtml(field.label)}
+                            <span class="edit-icon" onclick="toggleEditMode('${escapeHtml(field.key)}')" title="Edit">&#9998;</span>
+                        </div>
+                        <div class="detail-value view-mode ${!field.value ? 'empty-value' : ''}">${field.value ? escapeHtml(field.value) : '-'}</div>
+                        <div class="edit-mode">
+                            ${renderDTComponent(field, contactId)}
+                        </div>
+                    </div>
+                `;
+            }
+
+            // Render the appropriate DT component based on field type
+            // Components that need complex data (arrays/objects) get a data-field-id for programmatic init
+            function renderDTComponent(field, contactId) {
+                const fieldKey = escapeHtml(field.key);
+                const fieldId = `field-${contactId}-${field.key}`;
+
+                switch (field.type) {
+                    case 'text':
+                        return `<dt-text name="${fieldKey}" value="${escapeAttr(field.raw_value || '')}"></dt-text>`;
+
+                    case 'textarea':
+                        return `<dt-textarea name="${fieldKey}" value="${escapeAttr(field.raw_value || '')}"></dt-textarea>`;
+
+                    case 'number':
+                        return `<dt-number name="${fieldKey}" value="${escapeAttr(field.raw_value || '')}"></dt-number>`;
+
+                    case 'boolean':
+                        return `<dt-toggle name="${fieldKey}" ${field.raw_value ? 'checked' : ''}></dt-toggle>`;
+
+                    case 'date':
+                        return `<dt-date name="${fieldKey}" timestamp="${field.raw_value || ''}"></dt-date>`;
+
+                    case 'key_select':
+                        // key_select needs options set programmatically
+                        return `<dt-single-select data-field-id="${fieldId}" name="${fieldKey}"></dt-single-select>`;
+
+                    case 'multi_select':
+                        // multi_select needs value and options set programmatically
+                        return `<dt-multi-select data-field-id="${fieldId}" name="${fieldKey}"></dt-multi-select>`;
+
+                    case 'communication_channel':
+                        return `<dt-multi-text data-field-id="${fieldId}" name="${fieldKey}"></dt-multi-text>`;
+
+                    case 'tags':
+                        return `<dt-tags data-field-id="${fieldId}" name="${fieldKey}" allowAdd></dt-tags>`;
+
+                    case 'connection':
+                        return `<dt-connection data-field-id="${fieldId}" name="${fieldKey}" postType="${field.post_type || 'contacts'}"></dt-connection>`;
+
+                    case 'location':
+                    case 'location_meta':
+                        return `<dt-location data-field-id="${fieldId}" name="${fieldKey}"></dt-location>`;
+
+                    case 'user_select':
+                        // User select requires special permissions not available in magic link context
+                        return `<span class="detail-empty">Not editable in this view</span>`;
+
+                    default:
+                        return `<dt-text name="${fieldKey}" value="${escapeAttr(field.raw_value || '')}"></dt-text>`;
+                }
+            }
+
+            // Initialize DT components with their data after HTML is inserted
+            function initializeDTComponents() {
+                // Use requestAnimationFrame to ensure DOM is fully rendered
+                requestAnimationFrame(() => {
+                    const components = document.querySelectorAll('[data-field-id]');
+
+                    components.forEach(async (component) => {
+                        const fieldId = component.dataset.fieldId;
+                        const tagName = component.tagName.toLowerCase();
+                        const data = window.fieldDataStore[fieldId];
+
+                        if (!data) {
+                            return;
+                        }
+
+                        try {
+                            // Wait for the custom element to be defined/upgraded
+                            if (customElements.get(tagName) === undefined) {
+                                await customElements.whenDefined(tagName);
+                            }
+
+                            // Set properties directly on the component
+                            // IMPORTANT: Always set options first (even as empty array) before value
+                            // This prevents _filterOptions from failing when value triggers willUpdate
+                            component.options = data.options && data.options.length > 0 ? data.options : [];
+
+                            if (data.value !== null && data.value !== undefined) {
+                                // For multi-select, ensure value is an array of valid strings
+                                if (tagName === 'dt-multi-select' && Array.isArray(data.value)) {
+                                    const cleanValue = data.value
+                                        .filter(v => v !== null && v !== undefined && v !== '')
+                                        .map(v => String(v));
+                                    component.value = cleanValue;
+                                } else {
+                                    component.value = data.value;
+                                }
+                            }
+                        } catch (err) {
+                            console.error(`Error initializing component:`, err);
+                        }
+                    });
+                });
+            }
+
+            // Toggle edit mode for a field
+            function toggleEditMode(fieldKey) {
+                const section = document.querySelector(`.detail-section[data-field-key="${fieldKey}"]`);
+                if (!section) return;
+
+                const isEditing = section.classList.contains('editing');
+
+                // Close any other open edit modes
+                document.querySelectorAll('.detail-section.editing').forEach(el => {
+                    if (el !== section) {
+                        el.classList.remove('editing');
+                    }
+                });
+
+                if (isEditing) {
+                    section.classList.remove('editing');
+                } else {
+                    section.classList.add('editing');
+                    // Initialize change listener for the component
+                    initFieldChangeListener(section);
+                }
+            }
+
+            // Close edit mode when clicking outside
+            document.addEventListener('click', function(e) {
+                // Don't close if clicking inside an editing section or its components
+                const editingSection = document.querySelector('.detail-section.editing');
+                if (!editingSection) return;
+
+                // Check if click is inside the editing section
+                if (editingSection.contains(e.target)) return;
+
+                // Check if click is inside a dropdown/option list (these can be outside the section)
+                if (e.target.closest('.option-list, ul[class*="option"], li[tabindex]')) return;
+
+                // Close the editing section
+                editingSection.classList.remove('editing');
+            });
+
+            // Initialize change listener for a field's DT component
+            function initFieldChangeListener(section) {
+                const editMode = section.querySelector('.edit-mode');
+                const component = editMode.querySelector('dt-text, dt-textarea, dt-number, dt-toggle, dt-date, dt-single-select, dt-multi-select, dt-multi-text, dt-tags, dt-connection, dt-location');
+
+                if (!component || component.hasAttribute('data-listener-added')) return;
+
+                component.setAttribute('data-listener-added', 'true');
+
+                const fieldType = section.dataset.fieldType;
+
+                component.addEventListener('change', async (e) => {
+                    const fieldKey = section.dataset.fieldKey;
+                    const contactId = section.dataset.contactId;
+                    const newValue = e.detail?.newValue ?? e.detail?.value ?? component.value;
+
+                    await saveFieldValue(contactId, fieldKey, fieldType, newValue, section);
+                });
+            }
+
+            // Field types that allow multiple values - don't auto-close after saving
+            const multiValueFieldTypes = ['multi_select', 'connection', 'tags', 'location', 'location_meta', 'communication_channel'];
+
+            // Save field value to the server
+            async function saveFieldValue(contactId, fieldKey, fieldType, value, section) {
+                section.classList.add('saving');
+
+                try {
+                    const response = await fetch(
+                        `${myContactsApp.root}${myContactsApp.parts.root}/v1/${myContactsApp.parts.type}/update-field`,
+                        {
+                            method: 'POST',
+                            headers: {
+                                'Content-Type': 'application/json',
+                                'X-WP-Nonce': myContactsApp.nonce
+                            },
+                            body: JSON.stringify({
+                                contact_id: parseInt(contactId),
+                                field_key: fieldKey,
+                                field_value: value,
+                                parts: myContactsApp.parts
+                            })
+                        }
+                    );
+
+                    const result = await response.json();
+
+                    if (result.success) {
+                        // Update the view mode value
+                        const viewMode = section.querySelector('.view-mode');
+                        const displayValue = result.value || '-';
+                        viewMode.textContent = displayValue;
+                        viewMode.classList.toggle('empty-value', !result.value);
+
+                        // Only auto-close for single-value fields, not multi-value fields
+                        if (!multiValueFieldTypes.includes(fieldType)) {
+                            section.classList.remove('editing');
+                        }
+                        showSuccessToast('Field updated');
+                    } else {
+                        const errorMsg = result.message || 'Failed to update field';
+                        alert(errorMsg);
+                    }
+                } catch (error) {
+                    console.error('Error saving field:', error);
+                    alert('Error saving field');
+                } finally {
+                    section.classList.remove('saving');
+                }
+            }
+
+            // Escape HTML attribute
+            function escapeAttr(text) {
+                if (text === null || text === undefined) return '';
+                return String(text).replace(/"/g, '&quot;').replace(/'/g, '&#39;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
             }
 
             // Render field icon (image URL or font-icon class)
