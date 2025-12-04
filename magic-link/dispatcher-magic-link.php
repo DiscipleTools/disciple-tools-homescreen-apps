@@ -172,7 +172,7 @@ class Disciple_Tools_Homescreen_Apps_Dispatcher_Magic_Link extends DT_Magic_Url_
      */
     public function get_unassigned_contacts( WP_REST_Request $request ) {
         $contacts = DT_Posts::list_posts( 'contacts', [
-            'overall_status' => [ 'unassigned' ],
+            'overall_status' => [ 'unassigned', 'new' ],
             'sort'           => '-post_date',
             'limit'          => 100,
         ], true );
