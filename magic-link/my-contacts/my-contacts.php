@@ -76,6 +76,7 @@ class Disciple_Tools_Homescreen_Apps_My_Contacts_Magic_Link extends DT_Magic_Url
 
     public function dt_magic_url_base_allowed_js( $allowed_js ) {
         $allowed_js = [];
+        $allowed_js[] = 'vue-js';
         $allowed_js[] = 'dt-web-components';
         $allowed_js[] = 'my-contacts-js';
         return $allowed_js;
@@ -118,11 +119,20 @@ class Disciple_Tools_Homescreen_Apps_My_Contacts_Magic_Link extends DT_Magic_Url
             );
         }
 
+        // Enqueue Vue.js from CDN
+        wp_enqueue_script(
+            'vue-js',
+            'https://unpkg.com/vue@3/dist/vue.global.prod.js',
+            [],
+            '3',
+            true
+        );
+
         // Enqueue magic link JS
         wp_enqueue_script(
             'my-contacts-js',
             trailingslashit( plugin_dir_url( __FILE__ ) ) . 'my-contacts.js',
-            [],
+            [ 'vue-js' ],
             filemtime( plugin_dir_path( __FILE__ ) . 'my-contacts.js' ),
             true
         );
