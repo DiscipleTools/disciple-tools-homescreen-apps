@@ -26,9 +26,6 @@ const MyContactsApp = createApp({
         // Mobile state
         const isMobileDetailsVisible = ref(false);
 
-        // Field data store for DT components
-        const fieldDataStore = ref({});
-
         // Load contacts on mount
         onMounted(() => {
             loadContacts();
@@ -106,7 +103,6 @@ const MyContactsApp = createApp({
                 selectedContact.value = contact;
 
                 await nextTick();
-                initializeDTComponents();
                 initMentionListeners();
             } catch (error) {
                 console.error('Error loading contact details:', error);
@@ -368,47 +364,6 @@ const MyContactsApp = createApp({
             }
         }
 
-        // Initialize DT components
-        function initializeDTComponents() {
-            requestAnimationFrame(() => {
-                const components = document.querySelectorAll('[data-field-id]');
-
-                components.forEach(async (component) => {
-                    const fieldId = component.dataset.fieldId;
-                    const tagName = component.tagName.toLowerCase();
-                    const data = fieldDataStore.value[fieldId];
-
-                    if (!data) return;
-
-                    try {
-                        if (customElements.get(tagName) === undefined) {
-                            await customElements.whenDefined(tagName);
-                        }
-
-                        component.options = data.options && data.options.length > 0 ? data.options : [];
-
-                        if (data.value !== null && data.value !== undefined) {
-                            if (tagName === 'dt-multi-select' && Array.isArray(data.value)) {
-                                const cleanValue = data.value
-                                    .filter(v => v !== null && v !== undefined && v !== '')
-                                    .map(v => String(v));
-                                component.value = cleanValue;
-                            } else {
-                                component.value = data.value;
-                            }
-                        }
-                    } catch (err) {
-                        console.error('Error initializing component:', err);
-                    }
-                });
-            });
-        }
-
-        // Store field data for DT component initialization
-        function storeFieldData(fieldId, value, options, type) {
-            fieldDataStore.value[fieldId] = { value, options, type };
-        }
-
         // Global event listeners
         function setupGlobalEventListeners() {
             // Handle dt:get-data events for typeahead
@@ -528,58 +483,6 @@ const MyContactsApp = createApp({
             return '';
         }
 
-        function renderDTComponent(field, contactId) {
-            const fieldKey = escapeHtml(field.key);
-            const fieldId = `field-${contactId}-${field.key}`;
-
-            // Store field data for later initialization
-            const isArrayField = ['multi_select', 'tags', 'communication_channel', 'connection', 'location', 'location_meta', 'link'].includes(field.type);
-            const defaultValue = isArrayField ? [] : '';
-            const valueForStore = (field.raw_value !== null && field.raw_value !== undefined) ? field.raw_value : defaultValue;
-
-            const validOptions = (field.options || []).filter(opt =>
-                opt && opt.id !== null && opt.id !== undefined && opt.id !== '' &&
-                opt.label !== null && opt.label !== undefined && opt.label !== ''
-            ).map(opt => ({
-                id: String(opt.id),
-                label: String(opt.label),
-                color: opt.color || null,
-                icon: opt.icon || null
-            }));
-
-            storeFieldData(fieldId, valueForStore, validOptions, field.type);
-
-            switch (field.type) {
-                case 'text':
-                    return `<dt-text name="${fieldKey}" value="${escapeAttr(field.raw_value || '')}"></dt-text>`;
-                case 'textarea':
-                    return `<dt-textarea name="${fieldKey}" value="${escapeAttr(field.raw_value || '')}"></dt-textarea>`;
-                case 'number':
-                    return `<dt-number name="${fieldKey}" value="${escapeAttr(field.raw_value || '')}"></dt-number>`;
-                case 'boolean':
-                    return `<dt-toggle name="${fieldKey}" ${field.raw_value ? 'checked' : ''}></dt-toggle>`;
-                case 'date':
-                    return `<dt-date name="${fieldKey}" timestamp="${field.raw_value || ''}"></dt-date>`;
-                case 'key_select':
-                    return `<dt-single-select data-field-id="${fieldId}" name="${fieldKey}"></dt-single-select>`;
-                case 'multi_select':
-                    return `<dt-multi-select data-field-id="${fieldId}" name="${fieldKey}"></dt-multi-select>`;
-                case 'communication_channel':
-                    return `<dt-multi-text data-field-id="${fieldId}" name="${fieldKey}"></dt-multi-text>`;
-                case 'tags':
-                    return `<dt-tags data-field-id="${fieldId}" name="${fieldKey}" allowAdd></dt-tags>`;
-                case 'connection':
-                    return `<dt-connection data-field-id="${fieldId}" name="${fieldKey}" postType="${field.post_type || 'contacts'}"></dt-connection>`;
-                case 'location':
-                case 'location_meta':
-                    return `<dt-location data-field-id="${fieldId}" name="${fieldKey}"></dt-location>`;
-                case 'user_select':
-                    return `<span class="detail-empty">Not editable in this view</span>`;
-                default:
-                    return `<dt-text name="${fieldKey}" value="${escapeAttr(field.raw_value || '')}"></dt-text>`;
-            }
-        }
-
         // Expose methods to template
         return {
             // State
@@ -613,8 +516,7 @@ const MyContactsApp = createApp({
             escapeAttr,
             formatTimestamp,
             formatActivityContent,
-            renderFieldIcon,
-            renderDTComponent
+            renderFieldIcon
         };
     },
 
@@ -703,7 +605,7 @@ const MyContactsApp = createApp({
                                         <div class="detail-value view-mode" :class="{ 'empty-value': !field.value }">
                                             {{ field.value || '-' }}
                                         </div>
-                                        <div class="edit-mode" v-html="renderDTComponent(field, selectedContact.ID)"></div>
+                                        <div class="edit-mode" v-html="field.component_html"></div>
                                     </div>
                                 </div>
                             </template>

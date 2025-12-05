@@ -408,51 +408,19 @@ class Disciple_Tools_Homescreen_Apps_My_Contacts_Magic_Link extends DT_Magic_Url
             $field_order = $field_setting['in_create_form'] ?? 100;
             $field_type = $field_setting['type'] ?? 'text';
 
-            // Prepare raw value for editing
-            $raw_value = $this->prepare_raw_value( $value, $field_type );
-
-            // Prepare options for select fields
-            $options = [];
-            if ( in_array( $field_type, [ 'key_select', 'multi_select' ] ) && isset( $field_setting['default'] ) ) {
-                foreach ( $field_setting['default'] as $option_key => $option_data ) {
-                    // Skip deleted or hidden options
-                    if ( ! empty( $option_data['deleted'] ) || ! empty( $option_data['hidden'] ) ) {
-                        continue;
-                    }
-                    // Ensure we have a valid key
-                    if ( $option_key === '' || $option_key === null ) {
-                        continue;
-                    }
-                    $label = $option_data['label'] ?? (string) $option_key;
-                    // Ensure label is never empty
-                    if ( empty( $label ) ) {
-                        $label = (string) $option_key;
-                    }
-                    $options[] = [
-                        'id'    => (string) $option_key,
-                        'label' => $label,
-                        'color' => $option_data['color'] ?? null,
-                        'icon'  => $option_data['icon'] ?? null,
-                    ];
-                }
-            }
+            // Render the component HTML using DT_Components
+            $component_html = $this->render_field_component( $field_key, $field_settings, $contact, $field_type );
 
             $field_data = [
-                'key'       => $field_key,
-                'label'     => $field_setting['name'] ?? $field_key,
-                'value'     => $formatted_value,
-                'raw_value' => $raw_value,
-                'type'      => $field_type,
-                'options'   => $options,
-                'icon'      => $field_setting['icon'] ?? '',
-                'font_icon' => $field_setting['font-icon'] ?? '',
-                'order'     => is_numeric( $field_order ) ? intval( $field_order ) : 100,
+                'key'            => $field_key,
+                'label'          => $field_setting['name'] ?? $field_key,
+                'value'          => $formatted_value,
+                'type'           => $field_type,
+                'icon'           => $field_setting['icon'] ?? '',
+                'font_icon'      => $field_setting['font-icon'] ?? '',
+                'order'          => is_numeric( $field_order ) ? intval( $field_order ) : 100,
+                'component_html' => $component_html,
             ];
-
-            // Add post_type for connection fields
-            if ( $field_type === 'connection' && isset( $field_setting['post_type'] ) ) {
-                $field_data['post_type'] = $field_setting['post_type'];
-            }
 
             $tiles_with_fields[ $tile_key ]['fields'][] = $field_data;
         }
@@ -708,90 +676,76 @@ class Disciple_Tools_Homescreen_Apps_My_Contacts_Magic_Link extends DT_Magic_Url
     }
 
     /**
-     * Prepare raw value for editing (JSON-safe format for DT components)
+     * Render field component HTML using DT_Components
      */
-    private function prepare_raw_value( $value, $field_type ) {
-        if ( $value === null || $value === '' ) {
-            return null;
-        }
+    private function render_field_component( $field_key, $fields, $post, $field_type ) {
+        ob_start();
 
         switch ( $field_type ) {
             case 'text':
+                DT_Components::render_text( $field_key, $fields, $post );
+                break;
             case 'textarea':
+                DT_Components::render_textarea( $field_key, $fields, $post );
+                break;
             case 'number':
-                return is_string( $value ) || is_numeric( $value ) ? $value : '';
-
-            case 'boolean':
-                return (bool) $value;
-
-            case 'key_select':
-                return $value['key'] ?? '';
-
-            case 'multi_select':
-            case 'tags':
-                // Value should be an array of string IDs for the component
-                if ( is_array( $value ) ) {
-                    $result = [];
-                    foreach ( $value as $item ) {
-                        if ( is_string( $item ) ) {
-                            $result[] = $item;
-                        } elseif ( is_array( $item ) && isset( $item['value'] ) ) {
-                            $result[] = $item['value'];
-                        } elseif ( is_array( $item ) && isset( $item['key'] ) ) {
-                            $result[] = $item['key'];
-                        }
-                    }
-                    return $result;
-                }
-                return [];
-
-            case 'communication_channel':
-                if ( is_array( $value ) ) {
-                    return array_values( $value );
-                }
-                return [];
-
-            case 'connection':
-                if ( is_array( $value ) ) {
-                    return array_map( function( $item ) {
-                        return [
-                            'id'     => (int) ( $item['ID'] ?? 0 ),
-                            'label'  => $item['post_title'] ?? '',
-                            'link'   => $item['permalink'] ?? '',
-                            'status' => $item['status'] ?? null,
-                        ];
-                    }, $value );
-                }
-                return [];
-
-            case 'location':
-            case 'location_meta':
-                if ( is_array( $value ) ) {
-                    return array_values( $value );
-                }
-                return [];
-
-            case 'user_select':
-                if ( isset( $value['id'] ) ) {
-                    return $value['id'];
-                }
-                return null;
-
+                DT_Components::render_number( $field_key, $fields, $post );
+                break;
             case 'date':
-                if ( isset( $value['timestamp'] ) ) {
-                    return $value['timestamp'];
+                DT_Components::render_date( $field_key, $fields, $post );
+                break;
+            case 'datetime':
+                DT_Components::render_datetime( $field_key, $fields, $post );
+                break;
+            case 'key_select':
+                DT_Components::render_key_select( $field_key, $fields, $post );
+                break;
+            case 'multi_select':
+                DT_Components::render_multi_select( $field_key, $fields, $post );
+                break;
+            case 'tags':
+                DT_Components::render_tags( $field_key, $fields, $post );
+                break;
+            case 'connection':
+                DT_Components::render_connection( $field_key, $fields, $post );
+                break;
+            case 'location':
+                // Ensure location values have required id/label format
+                if ( isset( $post[ $field_key ] ) && is_array( $post[ $field_key ] ) ) {
+                    $post[ $field_key ] = array_filter( array_map( function( $loc ) {
+                        if ( ! is_array( $loc ) ) {
+                            return null;
+                        }
+                        return [
+                            'id'    => $loc['grid_id'] ?? $loc['id'] ?? $loc['ID'] ?? '',
+                            'label' => $loc['label'] ?? $loc['name'] ?? '',
+                        ];
+                    }, $post[ $field_key ] ), function( $loc ) {
+                        return $loc !== null && ! empty( $loc['id'] );
+                    });
                 }
-                return null;
-
-            case 'link':
-                if ( is_array( $value ) ) {
-                    return array_values( $value );
-                }
-                return [];
-
+                DT_Components::render_location( $field_key, $fields, $post );
+                break;
+            case 'location_meta':
+                DT_Components::render_location_meta( $field_key, $fields, $post );
+                break;
+            case 'communication_channel':
+                DT_Components::render_communication_channel( $field_key, $fields, $post );
+                break;
+            case 'boolean':
+                ?>
+                <dt-toggle name="<?php echo esc_attr( $field_key ); ?>" <?php echo ! empty( $post[ $field_key ] ) ? 'checked' : ''; ?>></dt-toggle>
+                <?php
+                break;
+            case 'user_select':
+                echo '<span class="detail-empty">Not editable in this view</span>';
+                break;
             default:
-                return $value;
+                DT_Components::render_text( $field_key, $fields, $post );
+                break;
         }
+
+        return ob_get_clean();
     }
 
     /**
