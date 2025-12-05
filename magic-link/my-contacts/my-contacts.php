@@ -74,12 +74,14 @@ class Disciple_Tools_Homescreen_Apps_My_Contacts_Magic_Link extends DT_Magic_Url
     }
 
     public function dt_magic_url_base_allowed_js( $allowed_js ) {
+        $allowed_js = [];
         $allowed_js[] = 'dt-web-components';
         $allowed_js[] = 'my-contacts-js';
         return $allowed_js;
     }
 
     public function dt_magic_url_base_allowed_css( $allowed_css ) {
+        $allowed_css = [];
         $allowed_css[] = 'dt-web-components-css';
         $allowed_css[] = 'my-contacts-css';
         return $allowed_css;
@@ -148,12 +150,22 @@ class Disciple_Tools_Homescreen_Apps_My_Contacts_Magic_Link extends DT_Magic_Url
     public function add_endpoints() {
         $namespace = $this->root . '/v1';
 
+        $permission_callback = function ( WP_REST_Request $request ) {
+            $magic = new DT_Magic_URL( $this->root );
+            $valid_parts = $magic->verify_rest_endpoint_permissions_on_post( $request, true );
+            if ( ! $valid_parts ) {
+                return false;
+            }
+            $this->parts = $valid_parts;
+            return true;
+        };
+
         register_rest_route(
             $namespace, '/' . $this->type . '/contacts', [
                 [
                     'methods'             => 'POST',
                     'callback'            => [ $this, 'get_my_contacts' ],
-                    'permission_callback' => [ $this, 'check_permission' ],
+                    'permission_callback' => $permission_callback,
                 ],
             ]
         );
@@ -163,7 +175,7 @@ class Disciple_Tools_Homescreen_Apps_My_Contacts_Magic_Link extends DT_Magic_Url
                 [
                     'methods'             => 'POST',
                     'callback'            => [ $this, 'get_contact_details' ],
-                    'permission_callback' => [ $this, 'check_permission' ],
+                    'permission_callback' => $permission_callback,
                 ],
             ]
         );
@@ -173,7 +185,7 @@ class Disciple_Tools_Homescreen_Apps_My_Contacts_Magic_Link extends DT_Magic_Url
                 [
                     'methods'             => 'POST',
                     'callback'            => [ $this, 'add_comment' ],
-                    'permission_callback' => [ $this, 'check_permission' ],
+                    'permission_callback' => $permission_callback,
                 ],
             ]
         );
@@ -183,7 +195,7 @@ class Disciple_Tools_Homescreen_Apps_My_Contacts_Magic_Link extends DT_Magic_Url
                 [
                     'methods'             => 'POST',
                     'callback'            => [ $this, 'get_users_for_mention' ],
-                    'permission_callback' => [ $this, 'check_permission' ],
+                    'permission_callback' => $permission_callback,
                 ],
             ]
         );
@@ -193,7 +205,7 @@ class Disciple_Tools_Homescreen_Apps_My_Contacts_Magic_Link extends DT_Magic_Url
                 [
                     'methods'             => 'POST',
                     'callback'            => [ $this, 'update_field' ],
-                    'permission_callback' => [ $this, 'check_permission' ],
+                    'permission_callback' => $permission_callback,
                 ],
             ]
         );
@@ -203,51 +215,17 @@ class Disciple_Tools_Homescreen_Apps_My_Contacts_Magic_Link extends DT_Magic_Url
                 [
                     'methods'             => 'POST',
                     'callback'            => [ $this, 'get_field_options' ],
-                    'permission_callback' => [ $this, 'check_permission' ],
+                    'permission_callback' => $permission_callback,
                 ],
             ]
         );
     }
 
     /**
-     * Check permission for REST endpoints
-     */
-    public function check_permission( WP_REST_Request $request ) {
-        $params = $request->get_json_params();
-        $params = dt_recursive_sanitize_array( $params );
-
-        if ( ! isset( $params['parts'], $params['parts']['public_key'], $params['parts']['meta_key'] ) ) {
-            return false;
-        }
-
-        $post_id = $this->get_post_id_from_magic_key( $params['parts']['meta_key'], $params['parts']['public_key'] );
-        return (bool) $post_id;
-    }
-
-    /**
-     * Get post ID from magic key
-     */
-    private function get_post_id_from_magic_key( $meta_key, $public_key ) {
-        global $wpdb;
-        $post_id = $wpdb->get_var( $wpdb->prepare(
-            "SELECT post_id FROM $wpdb->postmeta WHERE meta_key = %s AND meta_value = %s",
-            $meta_key,
-            $public_key
-        ) );
-        return $post_id ? intval( $post_id ) : null;
-    }
-
-    /**
      * Get contacts for this magic link owner
      */
     public function get_my_contacts( WP_REST_Request $request ) {
-        $params = $request->get_json_params();
-        $params = dt_recursive_sanitize_array( $params );
-
-        $owner_contact_id = $this->get_post_id_from_magic_key( $params['parts']['meta_key'], $params['parts']['public_key'] );
-        if ( ! $owner_contact_id ) {
-            return new WP_Error( 'invalid_key', 'Invalid magic link', [ 'status' => 403 ] );
-        }
+        $owner_contact_id = $this->parts['post_id'];
 
         $contacts = [];
         $contact_ids_added = [];
@@ -350,11 +328,7 @@ class Disciple_Tools_Homescreen_Apps_My_Contacts_Magic_Link extends DT_Magic_Url
         $params = $request->get_json_params();
         $params = dt_recursive_sanitize_array( $params );
 
-        $owner_contact_id = $this->get_post_id_from_magic_key( $params['parts']['meta_key'], $params['parts']['public_key'] );
-        if ( ! $owner_contact_id ) {
-            return new WP_Error( 'invalid_key', 'Invalid magic link', [ 'status' => 403 ] );
-        }
-
+        $owner_contact_id = $this->parts['post_id'];
         $contact_id = intval( $params['contact_id'] ?? 0 );
         if ( ! $contact_id ) {
             return new WP_Error( 'missing_contact_id', 'Contact ID is required', [ 'status' => 400 ] );
@@ -812,11 +786,7 @@ class Disciple_Tools_Homescreen_Apps_My_Contacts_Magic_Link extends DT_Magic_Url
         $params = $request->get_json_params();
         $params = dt_recursive_sanitize_array( $params );
 
-        $owner_contact_id = $this->get_post_id_from_magic_key( $params['parts']['meta_key'], $params['parts']['public_key'] );
-        if ( ! $owner_contact_id ) {
-            return new WP_Error( 'invalid_key', 'Invalid magic link', [ 'status' => 403 ] );
-        }
-
+        $owner_contact_id = $this->parts['post_id'];
         $contact_id = intval( $params['contact_id'] ?? 0 );
         $comment = $params['comment'] ?? '';
 
@@ -850,11 +820,7 @@ class Disciple_Tools_Homescreen_Apps_My_Contacts_Magic_Link extends DT_Magic_Url
         $params = $request->get_json_params();
         $params = dt_recursive_sanitize_array( $params );
 
-        $owner_contact_id = $this->get_post_id_from_magic_key( $params['parts']['meta_key'], $params['parts']['public_key'] );
-        if ( ! $owner_contact_id ) {
-            return new WP_Error( 'invalid_key', 'Invalid magic link', [ 'status' => 403 ] );
-        }
-
+        $owner_contact_id = $this->parts['post_id'];
         $search = $params['search'] ?? '';
 
         // Get the corresponding user for the magic link owner
@@ -898,11 +864,7 @@ class Disciple_Tools_Homescreen_Apps_My_Contacts_Magic_Link extends DT_Magic_Url
         $params = $request->get_json_params();
         $params = dt_recursive_sanitize_array( $params );
 
-        $owner_contact_id = $this->get_post_id_from_magic_key( $params['parts']['meta_key'], $params['parts']['public_key'] );
-        if ( ! $owner_contact_id ) {
-            return new WP_Error( 'invalid_key', 'Invalid magic link', [ 'status' => 403 ] );
-        }
-
+        $owner_contact_id = $this->parts['post_id'];
         $contact_id = intval( $params['contact_id'] ?? 0 );
         $field_key = $params['field_key'] ?? '';
         $field_value = $params['field_value'] ?? null;
@@ -949,14 +911,8 @@ class Disciple_Tools_Homescreen_Apps_My_Contacts_Magic_Link extends DT_Magic_Url
         $params = $request->get_json_params();
         $params = dt_recursive_sanitize_array( $params );
 
-        $owner_contact_id = $this->get_post_id_from_magic_key( $params['parts']['meta_key'], $params['parts']['public_key'] );
-        if ( ! $owner_contact_id ) {
-            return new WP_Error( 'invalid_key', 'Invalid magic link', [ 'status' => 403 ] );
-        }
-
         $field_key = $params['field'] ?? '';
         $query = $params['query'] ?? '';
-        $post_type = $params['post_type'] ?? 'contacts';
 
         if ( empty( $field_key ) ) {
             return new WP_Error( 'missing_field', 'Field key is required', [ 'status' => 400 ] );
