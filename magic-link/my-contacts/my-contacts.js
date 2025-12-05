@@ -375,8 +375,20 @@ async function submitComment() {
         const result = await response.json();
 
         if (result.success || result.comment_id) {
+            // Insert the new comment at the top of the activity list
+            const activityList = document.querySelector('.activity-list');
+            if (activityList) {
+                const newCommentHtml = `
+                    <div class="activity-item type-comment">
+                        <span class="activity-author">${escapeHtml(result.author || 'You')}</span>
+                        <span class="activity-date">${formatTimestamp(Math.floor(Date.now() / 1000))}</span>
+                        <div class="activity-content">${formatActivityContent(comment)}</div>
+                    </div>
+                `;
+                activityList.insertAdjacentHTML('afterbegin', newCommentHtml);
+            }
+
             textarea.value = '';
-            selectContact(selectedContactId);
             showSuccessToast('Comment added successfully!');
         } else {
             alert('Failed to add comment: ' + (result.message || 'Unknown error'));

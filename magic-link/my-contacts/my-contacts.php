@@ -17,6 +17,7 @@ class Disciple_Tools_Homescreen_Apps_My_Contacts_Magic_Link extends DT_Magic_Url
     public $root = 'homescreen_apps';
     public $type = 'my_contacts';
     public $post_type = 'contacts';
+    public $show_app_tile = true;
     private $meta_key = '';
 
     private static $_instance = null;
@@ -236,15 +237,19 @@ class Disciple_Tools_Homescreen_Apps_My_Contacts_Magic_Link extends DT_Magic_Url
             return new WP_Error( 'contact_not_found', 'Owner contact not found', [ 'status' => 404 ] );
         }
 
-        // 1. Get subassigned contacts (contacts where this contact is in their subassigned field)
-        if ( ! empty( $owner_contact['subassigned'] ) ) {
-            foreach ( $owner_contact['subassigned'] as $subassigned ) {
-                $subassigned_id = $subassigned['ID'] ?? null;
-                if ( $subassigned_id && ! in_array( $subassigned_id, $contact_ids_added ) ) {
-                    $contact = DT_Posts::get_post( 'contacts', $subassigned_id, true, false );
-                    if ( ! is_wp_error( $contact ) ) {
+        // 1. Get contacts where this contact is in their subassigned field
+        if ( ! empty( $owner_contact['subassigned_on'] ) ) {
+            $subassigned_contacts = DT_Posts::list_posts( 'contacts', [
+                'subassigned' => [ $owner_contact_id ],
+                'sort'        => '-last_modified',
+                'limit'       => 100,
+            ], false );
+
+            if ( ! is_wp_error( $subassigned_contacts ) && isset( $subassigned_contacts['posts'] ) ) {
+                foreach ( $subassigned_contacts['posts'] as $contact ) {
+                    if ( ! in_array( $contact['ID'], $contact_ids_added ) ) {
                         $contacts[] = $this->format_contact_for_list( $contact, 'subassigned' );
-                        $contact_ids_added[] = $subassigned_id;
+                        $contact_ids_added[] = $contact['ID'];
                     }
                 }
             }
@@ -348,8 +353,8 @@ class Disciple_Tools_Homescreen_Apps_My_Contacts_Magic_Link extends DT_Magic_Url
         $tile_settings = DT_Posts::get_post_tiles( 'contacts' );
 
         // Get comments and activity
-        $comments = DT_Posts::get_post_comments( 'contacts', $contact_id, true, 'all', [ 'number' => 50 ] );
-        $activity = DT_Posts::get_post_activity( 'contacts', $contact_id );
+        $comments = DT_Posts::get_post_comments( 'contacts', $contact_id, false );
+        $activity = DT_Posts::get_post_activity( 'contacts', $contact_id, [], false );
 
         // Fields to skip (internal/system fields)
         $skip_fields = [ 'corresponds_to_user', 'duplicate_data', 'duplicate_of', 'post_author', 'record_picture', 'name' ];
@@ -489,8 +494,8 @@ class Disciple_Tools_Homescreen_Apps_My_Contacts_Magic_Link extends DT_Magic_Url
         }
 
         // Check if contact is in subassigned
-        if ( ! empty( $owner_contact['subassigned'] ) ) {
-            foreach ( $owner_contact['subassigned'] as $subassigned ) {
+        if ( ! empty( $owner_contact['subassigned_on'] ) ) {
+            foreach ( $owner_contact['subassigned_on'] as $subassigned ) {
                 if ( ( $subassigned['ID'] ?? null ) === $contact_id ) {
                     return true;
                 }
@@ -798,8 +803,14 @@ class Disciple_Tools_Homescreen_Apps_My_Contacts_Magic_Link extends DT_Magic_Url
         if ( ! $this->verify_contact_access( $owner_contact_id, $contact_id ) ) {
             return new WP_Error( 'access_denied', 'You do not have access to this contact', [ 'status' => 403 ] );
         }
+        $args = [];
+        $corresponds_to_user = Disciple_Tools_Users::get_user_for_contact( $owner_contact_id );
+        if ( empty( $corresponds_to_user ) ) {
+            $owner_contact = DT_Posts::get_post( 'contacts', $owner_contact_id, true, false );
+            $args['comment_author'] = $owner_contact['name'];
+        }
 
-        $result = DT_Posts::add_post_comment( 'contacts', $contact_id, $comment, 'comment', [], false, true );
+        $result = DT_Posts::add_post_comment( 'contacts', $contact_id, $comment, 'comment', $args, false );
 
         if ( is_wp_error( $result ) ) {
             return $result;
