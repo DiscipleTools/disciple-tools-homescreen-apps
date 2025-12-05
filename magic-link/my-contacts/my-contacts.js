@@ -492,7 +492,7 @@ function renderMentionDropdown() {
     dropdown.innerHTML = mentionUsers.map((user, index) => `
         <div class="mention-item ${index === mentionActiveIndex ? 'active' : ''}"
              onclick="selectMention(mentionUsers[${index}])">
-            <span class="mention-name">${escapeHtml(user.display_name)}</span>
+            <span class="mention-name">${escapeHtml(user.name)}</span>
         </div>
     `).join('');
 }
@@ -505,7 +505,7 @@ function selectMention(user) {
     const beforeMention = text.substring(0, mentionStartPos);
     const afterCursor = text.substring(cursorPos);
 
-    const mentionText = `@[${user.display_name}](${user.ID}) `;
+    const mentionText = `@[${user.name}](${user.ID}) `;
     textarea.value = beforeMention + mentionText + afterCursor;
 
     const newCursorPos = beforeMention.length + mentionText.length;
@@ -734,7 +734,16 @@ function initFieldChangeListener(section) {
     component.addEventListener('change', async (e) => {
         const fieldKey = section.dataset.fieldKey;
         const contactId = section.dataset.contactId;
-        const newValue = e.detail?.newValue ?? e.detail?.value ?? component.value;
+        const rawValue = e.detail?.newValue ?? e.detail?.value ?? component.value;
+
+        // Use ComponentService.convertValue to format the value for the DT API
+        let newValue = rawValue;
+        if (window.DtWebComponents?.ComponentService?.convertValue) {
+            newValue = window.DtWebComponents.ComponentService.convertValue(
+                component.tagName,
+                rawValue
+            );
+        }
 
         await saveFieldValue(contactId, fieldKey, fieldType, newValue, section);
     });

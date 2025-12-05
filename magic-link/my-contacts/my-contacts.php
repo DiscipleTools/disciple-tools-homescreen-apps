@@ -375,7 +375,7 @@ class Disciple_Tools_Homescreen_Apps_My_Contacts_Magic_Link extends DT_Magic_Url
 
         // Get comments and activity
         $comments = DT_Posts::get_post_comments( 'contacts', $contact_id, true, 'all', [ 'number' => 50 ] );
-        $activity = $this->get_post_activity( $contact_id );
+        $activity = DT_Posts::get_post_activity( 'contacts', $contact_id );
 
         // Fields to skip (internal/system fields)
         $skip_fields = [ 'corresponds_to_user', 'duplicate_data', 'duplicate_of', 'post_author', 'record_picture', 'name' ];
@@ -547,45 +547,6 @@ class Disciple_Tools_Homescreen_Apps_My_Contacts_Magic_Link extends DT_Magic_Url
     }
 
     /**
-     * Get post activity log
-     */
-    private function get_post_activity( $post_id ) {
-        global $wpdb;
-
-        $activity = $wpdb->get_results( $wpdb->prepare(
-            "SELECT * FROM $wpdb->dt_activity_log
-             WHERE object_id = %d
-             AND object_type = 'contacts'
-             ORDER BY hist_time DESC
-             LIMIT 50",
-            $post_id
-        ), ARRAY_A );
-
-        $formatted_activity = [];
-        foreach ( $activity as $item ) {
-            // Skip certain action types that are not user-facing
-            $skip_actions = [ 'connected to', 'disconnected from' ];
-            if ( in_array( $item['action'] ?? '', $skip_actions ) ) {
-                continue;
-            }
-
-            $formatted_activity[] = [
-                'id'          => $item['histid'],
-                'type'        => 'activity',
-                'action'      => $item['action'] ?? '',
-                'object_note' => $item['object_note'] ?? '',
-                'meta_key'    => $item['meta_key'] ?? '',
-                'meta_value'  => $item['meta_value'] ?? '',
-                'old_value'   => $item['old_value'] ?? '',
-                'user_id'     => $item['user_id'] ?? 0,
-                'timestamp'   => intval( $item['hist_time'] ?? 0 )
-            ];
-        }
-
-        return $formatted_activity;
-    }
-
-    /**
      * Merge comments and activity into a single timeline
      */
     private function merge_comments_and_activity( $comments, $activity ) {
@@ -604,33 +565,32 @@ class Disciple_Tools_Homescreen_Apps_My_Contacts_Magic_Link extends DT_Magic_Url
             ];
         }
 
-        // Add activity (only field changes, not comments which are already included)
-        foreach ( $activity as $item ) {
-            if ( $item['action'] === 'comment' ) {
-                continue; // Skip comment actions as they're already in comments
+        // Add activity from DT_Posts::get_post_activity() format
+        $activity_items = $activity['activity'] ?? [];
+        foreach ( $activity_items as $item ) {
+            // Skip comment actions as they're already in comments
+            if ( ( $item['action'] ?? '' ) === 'comment' ) {
+                continue;
             }
 
-            $description = $this->format_activity_description( $item );
+            // Use object_note as the description
+            $description = $item['object_note'] ?? '';
             if ( empty( $description ) ) {
                 continue;
             }
 
             // Get user display name
-            $user_name = 'System';
-            if ( ! empty( $item['user_id'] ) ) {
-                $user = get_userdata( $item['user_id'] );
-                if ( $user ) {
-                    $user_name = $user->display_name;
-                }
-            }
+            $user_name = $item['name'] ?? 'System';
+
+            $timestamp = intval( $item['hist_time'] ?? 0 );
 
             $merged[] = [
                 'type'      => 'activity',
-                'id'        => $item['id'],
+                'id'        => $item['histid'] ?? 0,
                 'content'   => $description,
                 'author'    => $user_name,
-                'date'      => $item['date'],
-                'timestamp' => $item['timestamp'],
+                'date'      => $item['date'] ?? '',
+                'timestamp' => $timestamp,
             ];
         }
 
@@ -640,34 +600,6 @@ class Disciple_Tools_Homescreen_Apps_My_Contacts_Magic_Link extends DT_Magic_Url
         });
 
         return $merged;
-    }
-
-    /**
-     * Format activity item into human-readable description
-     */
-    private function format_activity_description( $item ) {
-        $action = $item['action'] ?? '';
-        $meta_key = $item['meta_key'] ?? '';
-        $object_note = $item['object_note'] ?? '';
-
-        // If there's an object note, use it
-        if ( ! empty( $object_note ) ) {
-            return $object_note;
-        }
-
-        // Format based on action type
-        switch ( $action ) {
-            case 'field_update':
-                $field_settings = DT_Posts::get_post_field_settings( 'contacts' );
-                $field_name = $field_settings[ $meta_key ]['name'] ?? $meta_key;
-                return sprintf( 'Updated %s', $field_name );
-
-            case 'created':
-                return 'Contact created';
-
-            default:
-                return '';
-        }
     }
 
     /**
@@ -874,105 +806,6 @@ class Disciple_Tools_Homescreen_Apps_My_Contacts_Magic_Link extends DT_Magic_Url
     }
 
     /**
-     * Format a value for DT_Posts::update_post based on field type
-     */
-    private function format_value_for_update( $value, $field_type, $contact_id, $field_key ) {
-        switch ( $field_type ) {
-            case 'text':
-            case 'textarea':
-            case 'number':
-            case 'boolean':
-            case 'key_select':
-                // These types can be passed directly
-                return $value;
-
-            case 'date':
-                // Date expects a timestamp or date string
-                return $value;
-
-            case 'multi_select':
-            case 'tags':
-                // multi_select and tags expect: ['values' => [['value' => 'option1'], ['value' => 'option2']]]
-                // The component uses '-' prefix to mark items for deletion (e.g., ["-tag1", "tag2"])
-                $new_values = is_array( $value ) ? $value : [];
-
-                $update_values = [];
-                foreach ( $new_values as $v ) {
-                    // Check for deletion prefix (component marks deleted items with '-' prefix)
-                    if ( is_string( $v ) && strpos( $v, '-' ) === 0 ) {
-                        $update_values[] = [ 'value' => substr( $v, 1 ), 'delete' => true ];
-                    } else {
-                        $update_values[] = [ 'value' => $v ];
-                    }
-                }
-
-                return [ 'values' => $update_values ];
-
-            case 'communication_channel':
-                // communication_channel is more complex - for now return as-is
-                // Full implementation would need to track meta_ids for updates
-                if ( is_array( $value ) ) {
-                    return $value;
-                }
-                return [];
-
-            case 'connection':
-                // connection expects: ['values' => [['value' => post_id]]]
-                // Items with 'delete' property should be removed
-                if ( is_array( $value ) ) {
-                    $formatted = [];
-                    foreach ( $value as $item ) {
-                        if ( isset( $item['id'] ) ) {
-                            $entry = [ 'value' => $item['id'] ];
-                            if ( ! empty( $item['delete'] ) ) {
-                                $entry['delete'] = true;
-                            }
-                            $formatted[] = $entry;
-                        } elseif ( is_numeric( $item ) ) {
-                            $formatted[] = [ 'value' => intval( $item ) ];
-                        }
-                    }
-                    return [ 'values' => $formatted ];
-                }
-                return [ 'values' => [] ];
-
-            case 'location':
-            case 'location_meta':
-                // location expects: ['values' => [['value' => grid_id]]]
-                // Items with 'delete' property should be removed
-                if ( is_array( $value ) ) {
-                    $formatted = [];
-                    foreach ( $value as $item ) {
-                        $entry = null;
-                        if ( isset( $item['id'] ) ) {
-                            $entry = [ 'value' => $item['id'] ];
-                        } elseif ( isset( $item['grid_id'] ) ) {
-                            $entry = [ 'value' => $item['grid_id'] ];
-                        }
-                        if ( $entry ) {
-                            if ( ! empty( $item['delete'] ) ) {
-                                $entry['delete'] = true;
-                            }
-                            $formatted[] = $entry;
-                        }
-                    }
-                    return [ 'values' => $formatted ];
-                }
-                return [ 'values' => [] ];
-
-            case 'user_select':
-                // user_select expects a user ID string like "user-123"
-                if ( is_numeric( $value ) ) {
-                    return 'user-' . $value;
-                }
-                return $value;
-
-            default:
-                return $value;
-        }
-    }
-
-    /**
      * Add a comment to a contact
      */
     public function add_comment( WP_REST_Request $request ) {
@@ -1011,22 +844,47 @@ class Disciple_Tools_Homescreen_Apps_My_Contacts_Magic_Link extends DT_Magic_Url
 
     /**
      * Get users for @mention autocomplete
+     * Uses the existing Disciple_Tools_Users::get_assignable_users_compact() function
      */
     public function get_users_for_mention( WP_REST_Request $request ) {
         $params = $request->get_json_params();
         $params = dt_recursive_sanitize_array( $params );
 
+        $owner_contact_id = $this->get_post_id_from_magic_key( $params['parts']['meta_key'], $params['parts']['public_key'] );
+        if ( ! $owner_contact_id ) {
+            return new WP_Error( 'invalid_key', 'Invalid magic link', [ 'status' => 403 ] );
+        }
+
         $search = $params['search'] ?? '';
 
-        global $wpdb;
+        // Get the corresponding user for the magic link owner
+        $owner_contact = DT_Posts::get_post( 'contacts', $owner_contact_id, true, false );
+        if ( is_wp_error( $owner_contact ) ) {
+            return [ 'users' => [] ];
+        }
 
-        $users = $wpdb->get_results( $wpdb->prepare( "
-            SELECT ID, display_name
-            FROM $wpdb->users
-            WHERE display_name LIKE %s
-            ORDER BY display_name
-            LIMIT 10
-        ", '%' . $wpdb->esc_like( $search ) . '%' ), ARRAY_A );
+        $corresponds_to_user = $owner_contact['corresponds_to_user'] ?? null;
+        if ( ! $corresponds_to_user ) {
+            return [ 'users' => [] ];
+        }
+
+        $user_id = is_array( $corresponds_to_user ) ? ( $corresponds_to_user['ID'] ?? null ) : $corresponds_to_user;
+        if ( ! $user_id ) {
+            return [ 'users' => [] ];
+        }
+
+        // Temporarily set the current user to get assignable users
+        $original_user_id = get_current_user_id();
+        wp_set_current_user( $user_id );
+
+        $users = Disciple_Tools_Users::get_assignable_users_compact( $search );
+
+        // Restore the original user
+        wp_set_current_user( $original_user_id );
+
+        if ( is_wp_error( $users ) ) {
+            return [ 'users' => [] ];
+        }
 
         return [
             'users' => $users,
@@ -1058,16 +916,13 @@ class Disciple_Tools_Homescreen_Apps_My_Contacts_Magic_Link extends DT_Magic_Url
             return new WP_Error( 'access_denied', 'You do not have access to this contact', [ 'status' => 403 ] );
         }
 
-        // Get field settings to determine field type
+        // Get field settings
         $field_settings = DT_Posts::get_post_field_settings( 'contacts' );
         $field_setting = $field_settings[ $field_key ] ?? [];
-        $field_type = $field_setting['type'] ?? 'text';
 
-        // Transform the value to the format DT_Posts expects
-        $formatted_update_value = $this->format_value_for_update( $field_value, $field_type, $contact_id, $field_key );
-
-        // Update the field
-        $update_data = [ $field_key => $formatted_update_value ];
+        // The JS uses ComponentService.convertValue() to format the value correctly for DT_Posts
+        // so we can pass it directly without transformation
+        $update_data = [ $field_key => $field_value ];
         $result = DT_Posts::update_post( 'contacts', $contact_id, $update_data, true, false );
 
         if ( is_wp_error( $result ) ) {
