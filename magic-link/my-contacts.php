@@ -550,8 +550,7 @@ class Disciple_Tools_Homescreen_Apps_My_Contacts_Magic_Link extends DT_Magic_Url
                 'meta_value'  => $item['meta_value'] ?? '',
                 'old_value'   => $item['old_value'] ?? '',
                 'user_id'     => $item['user_id'] ?? 0,
-                'timestamp'   => intval( $item['hist_time'] ?? 0 ),
-                'date'        => gmdate( 'Y-m-d H:i:s', intval( $item['hist_time'] ?? 0 ) ),
+                'timestamp'   => intval( $item['hist_time'] ?? 0 )
             ];
         }
 
@@ -566,7 +565,7 @@ class Disciple_Tools_Homescreen_Apps_My_Contacts_Magic_Link extends DT_Magic_Url
 
         // Add comments
         foreach ( $comments as $comment ) {
-            $timestamp = strtotime( $comment['comment_date'] ?? '' );
+            $timestamp = strtotime( $comment['comment_date_gmt'] ?? '' );
             $merged[] = [
                 'type'      => 'comment',
                 'id'        => $comment['comment_ID'] ?? 0,
@@ -1493,6 +1492,68 @@ class Disciple_Tools_Homescreen_Apps_My_Contacts_Magic_Link extends DT_Magic_Url
                 color: #666;
             }
 
+            /* Collapsible activity group */
+            .activity-group {
+                margin-bottom: 8px;
+            }
+
+            .activity-group-header {
+                display: flex;
+                align-items: center;
+                gap: 8px;
+                padding: 8px 12px;
+                background: var(--bg-color);
+                border-radius: 6px;
+                cursor: pointer;
+                font-size: 13px;
+                color: #666;
+                border-left: 3px solid #ccc;
+            }
+
+            .activity-group-header:hover {
+                background: #eee;
+            }
+
+            .activity-group-arrow {
+                transition: transform 0.2s ease;
+                font-size: 10px;
+            }
+
+            .activity-group.expanded .activity-group-arrow {
+                transform: rotate(90deg);
+            }
+
+            .activity-group-content {
+                display: none;
+                padding-left: 20px;
+                margin-top: 4px;
+            }
+
+            .activity-group.expanded .activity-group-content {
+                display: block;
+            }
+
+            .activity-compact-item {
+                padding: 4px 0;
+                font-size: 12px;
+                color: #666;
+                border-bottom: 1px solid #f0f0f0;
+            }
+
+            .activity-compact-item:last-child {
+                border-bottom: none;
+            }
+
+            .activity-compact-author {
+                font-weight: 500;
+                color: #333;
+            }
+
+            .activity-compact-date {
+                color: #999;
+                margin-left: 8px;
+            }
+
             .activity-content {
                 margin-top: 6px;
                 font-size: 14px;
@@ -2010,16 +2071,43 @@ class Disciple_Tools_Homescreen_Apps_My_Contacts_Magic_Link extends DT_Magic_Url
                     </div>
                 `;
 
-                // Render activity/comments timeline
-                const activityHtml = contact.activity && contact.activity.length > 0 ?
-                    contact.activity.map(item => `
-                        <div class="activity-item type-${item.type}">
-                            <span class="activity-author">${escapeHtml(item.author)}</span>
-                            <span class="activity-date">${escapeHtml(item.date)}</span>
-                            <span class="activity-type-badge ${item.type}">${item.type}</span>
-                            <div class="activity-content">${formatActivityContent(item.content)}</div>
-                        </div>
-                    `).join('') :
+                // Render activity/comments timeline with grouped field updates
+                const groupedActivity = groupActivityItems(contact.activity || []);
+
+                const activityHtml = groupedActivity.length > 0 ?
+                    groupedActivity.map((item, index) => {
+                        if (item.type === 'comment') {
+                            // Render comment as prominent card
+                            return `
+                                <div class="activity-item type-comment">
+                                    <span class="activity-author">${escapeHtml(item.author)}</span>
+                                    <span class="activity-date">${formatTimestamp(item.timestamp)}</span>
+                                    <div class="activity-content">${formatActivityContent(item.content)}</div>
+                                </div>
+                            `;
+                        } else {
+                            // Render activity group as collapsible
+                            const count = item.items.length;
+                            const groupId = `activity-group-${index}`;
+                            return `
+                                <div class="activity-group" id="${groupId}">
+                                    <div class="activity-group-header" onclick="toggleActivityGroup('${groupId}')">
+                                        <span class="activity-group-arrow">▶</span>
+                                        <span>${count} field update${count > 1 ? 's' : ''}</span>
+                                    </div>
+                                    <div class="activity-group-content">
+                                        ${item.items.map(a => `
+                                            <div class="activity-compact-item">
+                                                ${formatActivityContent(a.content)}
+                                                <span class="activity-compact-author">${escapeHtml(a.author)}</span>
+                                                <span class="activity-compact-date">${formatTimestamp(a.timestamp)}</span>
+                                            </div>
+                                        `).join('')}
+                                    </div>
+                                </div>
+                            `;
+                        }
+                    }).join('') :
                     '<p class="detail-empty">No activity yet</p>';
 
                 container.innerHTML = `
@@ -2075,6 +2163,43 @@ class Disciple_Tools_Homescreen_Apps_My_Contacts_Magic_Link extends DT_Magic_Url
                 );
 
                 return formatted;
+            }
+
+            // Group consecutive activity items while keeping comments separate
+            function groupActivityItems(items) {
+                const grouped = [];
+                let currentGroup = null;
+
+                items.forEach(item => {
+                    if (item.type === 'comment') {
+                        // Flush any pending activity group
+                        if (currentGroup) {
+                            grouped.push({ type: 'activity-group', items: currentGroup });
+                            currentGroup = null;
+                        }
+                        // Add comment as-is
+                        grouped.push(item);
+                    } else {
+                        // Accumulate activity items
+                        if (!currentGroup) currentGroup = [];
+                        currentGroup.push(item);
+                    }
+                });
+
+                // Flush remaining activity group
+                if (currentGroup) {
+                    grouped.push({ type: 'activity-group', items: currentGroup });
+                }
+
+                return grouped;
+            }
+
+            // Toggle activity group expand/collapse
+            function toggleActivityGroup(groupId) {
+                const group = document.getElementById(groupId);
+                if (group) {
+                    group.classList.toggle('expanded');
+                }
             }
 
             // Comment submission
@@ -2549,6 +2674,19 @@ class Disciple_Tools_Homescreen_Apps_My_Contacts_Magic_Link extends DT_Magic_Url
                 const div = document.createElement('div');
                 div.textContent = text;
                 return div.innerHTML;
+            }
+
+            // Format timestamp in browser's timezone
+            function formatTimestamp(timestamp) {
+                if (!timestamp) return '';
+                const date = new Date(timestamp * 1000);
+                return date.toLocaleString(undefined, {
+                    year: 'numeric',
+                    month: 'short',
+                    day: 'numeric',
+                    hour: 'numeric',
+                    minute: '2-digit'
+                });
             }
 
             // Success toast
