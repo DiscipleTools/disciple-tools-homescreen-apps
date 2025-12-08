@@ -711,20 +711,6 @@ class Disciple_Tools_Homescreen_Apps_My_Contacts_Magic_Link extends DT_Magic_Url
                 DT_Components::render_connection( $field_key, $fields, $post );
                 break;
             case 'location':
-                // Ensure location values have required id/label format
-                if ( isset( $post[ $field_key ] ) && is_array( $post[ $field_key ] ) ) {
-                    $post[ $field_key ] = array_filter( array_map( function( $loc ) {
-                        if ( ! is_array( $loc ) ) {
-                            return null;
-                        }
-                        return [
-                            'id'    => $loc['grid_id'] ?? $loc['id'] ?? $loc['ID'] ?? '',
-                            'label' => $loc['label'] ?? $loc['name'] ?? '',
-                        ];
-                        }, $post[ $field_key ] ), function( $loc ) {
-                        return $loc !== null && ! empty( $loc['id'] );
-                    });
-                }
                 DT_Components::render_location( $field_key, $fields, $post );
                 break;
             case 'location_meta':
@@ -932,8 +918,7 @@ class Disciple_Tools_Homescreen_Apps_My_Contacts_Magic_Link extends DT_Magic_Url
             case 'location_meta':
                 // Search location grid
                 $search_results = Disciple_Tools_Mapping_Queries::search_location_grid_by_name( [
-                    's' => $query,
-                    'limit' => 20,
+                    'search_query' => $query,
                 ] );
 
                 if ( ! empty( $search_results ) && isset( $search_results['location_grid'] ) ) {
