@@ -53,7 +53,8 @@ body {
     font-size: 14px;
 }
 
-.panel-header .header-contact-name {
+.panel-header .header-contact-name,
+.panel-header #mobile-contact-name {
     color: var(--primary-color);
     font-weight: 600;
     font-size: 16px;
@@ -562,15 +563,12 @@ i.field-icon {
     }
 }
 
-/* Responsive */
+/* Mobile/Tablet Layout */
 @media (max-width: 1024px) {
     .details-grid {
         grid-template-columns: 1fr;
     }
-}
 
-/* Mobile Layout */
-@media (max-width: 768px) {
     .my-contacts-container {
         grid-template-columns: 1fr;
         height: 100vh;
@@ -629,6 +627,34 @@ i.field-icon {
     display: none;
 }
 
+/* Mobile navigation arrows */
+.mobile-nav-arrows {
+    display: none;
+    margin-left: auto;
+    gap: 4px;
+}
+
+.nav-arrow {
+    background: none;
+    border: 1px solid var(--border-color);
+    border-radius: 4px;
+    padding: 4px 8px;
+    cursor: pointer;
+    color: var(--primary-color);
+    font-size: 18px;
+    line-height: 1;
+}
+
+.nav-arrow:disabled {
+    color: #ccc;
+    border-color: #eee;
+    cursor: not-allowed;
+}
+
+.nav-arrow:not(:disabled):hover {
+    background: var(--bg-color);
+}
+
 /* Mobile tabs */
 .mobile-tabs {
     display: none;
@@ -654,13 +680,17 @@ i.field-icon {
     border-bottom-color: var(--primary-color);
 }
 
-@media (max-width: 768px) {
+@media (max-width: 1024px) {
     .mobile-only {
         display: inline-block;
     }
 
     .desktop-only {
         display: none;
+    }
+
+    .mobile-nav-arrows {
+        display: flex;
     }
 
     .mobile-tabs {

@@ -411,11 +411,29 @@ const MyContactsApp = createApp({
 
         // Mobile helpers
         function isMobile() {
-            return window.innerWidth <= 768;
+            return window.innerWidth <= 1024;
         }
 
         function hideMobileDetails() {
             isMobileDetailsVisible.value = false;
+        }
+
+        function navigateContact(direction) {
+            const currentIndex = filteredContacts.value.findIndex(c => c.ID === selectedContactId.value);
+            if (currentIndex === -1) return;
+
+            const newIndex = currentIndex + direction;
+            if (newIndex >= 0 && newIndex < filteredContacts.value.length) {
+                selectContact(filteredContacts.value[newIndex].ID);
+            }
+        }
+
+        function canNavigate(direction) {
+            const currentIndex = filteredContacts.value.findIndex(c => c.ID === selectedContactId.value);
+            if (currentIndex === -1) return false;
+
+            const newIndex = currentIndex + direction;
+            return newIndex >= 0 && newIndex < filteredContacts.value.length;
         }
 
         // Utility functions
@@ -512,6 +530,8 @@ const MyContactsApp = createApp({
             hideMentionDropdown,
             toggleEditMode,
             hideMobileDetails,
+            navigateContact,
+            canNavigate,
 
             // Helpers
             escapeHtml,
@@ -568,6 +588,10 @@ const MyContactsApp = createApp({
                     <button class="mobile-back-btn mobile-only" @click="hideMobileDetails">&larr;</button>
                     <span class="desktop-only header-contact-name">{{ selectedContact?.name || 'Contact Details' }}</span>
                     <span class="mobile-only" id="mobile-contact-name">{{ selectedContact?.name || '' }}</span>
+                    <div class="mobile-nav-arrows mobile-only">
+                        <button class="nav-arrow" :disabled="!canNavigate(-1)" @click="navigateContact(-1)"><i class="mdi mdi-chevron-left"></i></button>
+                        <button class="nav-arrow" :disabled="!canNavigate(1)" @click="navigateContact(1)"><i class="mdi mdi-chevron-right"></i></button>
+                    </div>
                 </div>
                 <div class="mobile-tabs mobile-only" v-if="selectedContact && !selectedContact.error">
                     <button class="mobile-tab" :class="{ active: mobileActiveTab === 'details' }" @click="mobileActiveTab = 'details'">Details</button>
