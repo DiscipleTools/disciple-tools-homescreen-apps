@@ -77,14 +77,14 @@ class Disciple_Tools_Homescreen_Apps_My_Contacts_Magic_Link extends DT_Magic_Url
     public function dt_magic_url_base_allowed_js( $allowed_js ) {
         $allowed_js = [];
         $allowed_js[] = 'vue-js';
-        $allowed_js[] = 'dt-web-components';
+        $allowed_js[] = 'web-components';
         $allowed_js[] = 'my-contacts-js';
         return $allowed_js;
     }
 
     public function dt_magic_url_base_allowed_css( $allowed_css ) {
         $allowed_css = [];
-        $allowed_css[] = 'dt-web-components-css';
+        $allowed_css[] = 'web-components-css';
         $allowed_css[] = 'my-contacts-css';
         $allowed_css[] = 'material-font-icons';
         return $allowed_css;
@@ -94,32 +94,6 @@ class Disciple_Tools_Homescreen_Apps_My_Contacts_Magic_Link extends DT_Magic_Url
      * Enqueue scripts and styles
      */
     public function wp_enqueue_scripts() {
-        $theme_uri = get_template_directory_uri();
-        $theme_dir = get_template_directory();
-
-        // Enqueue DT web components JS
-        $components_js = 'dt-assets/build/components/index.js';
-        if ( file_exists( $theme_dir . '/' . $components_js ) ) {
-            wp_enqueue_script(
-                'dt-web-components',
-                $theme_uri . '/' . $components_js,
-                [],
-                filemtime( $theme_dir . '/' . $components_js ),
-                true
-            );
-        }
-
-        // Enqueue DT web components CSS
-        $components_css = 'dt-assets/build/css/light.min.css';
-        if ( file_exists( $theme_dir . '/' . $components_css ) ) {
-            wp_enqueue_style(
-                'dt-web-components-css',
-                $theme_uri . '/' . $components_css,
-                [],
-                filemtime( $theme_dir . '/' . $components_css )
-            );
-        }
-
         // Enqueue Vue.js from CDN
         wp_enqueue_script(
             'vue-js',
@@ -677,48 +651,12 @@ class Disciple_Tools_Homescreen_Apps_My_Contacts_Magic_Link extends DT_Magic_Url
     }
 
     /**
-     * Render field component HTML using DT_Components
+     * Render field component HTML using Magic Links Helper
      */
     private function render_field_component( $field_key, $fields, $post, $field_type ) {
         ob_start();
 
         switch ( $field_type ) {
-            case 'text':
-                DT_Components::render_text( $field_key, $fields, $post );
-                break;
-            case 'textarea':
-                DT_Components::render_textarea( $field_key, $fields, $post );
-                break;
-            case 'number':
-                DT_Components::render_number( $field_key, $fields, $post );
-                break;
-            case 'date':
-                DT_Components::render_date( $field_key, $fields, $post );
-                break;
-            case 'datetime':
-                DT_Components::render_datetime( $field_key, $fields, $post );
-                break;
-            case 'key_select':
-                DT_Components::render_key_select( $field_key, $fields, $post );
-                break;
-            case 'multi_select':
-                DT_Components::render_multi_select( $field_key, $fields, $post );
-                break;
-            case 'tags':
-                DT_Components::render_tags( $field_key, $fields, $post );
-                break;
-            case 'connection':
-                DT_Components::render_connection( $field_key, $fields, $post );
-                break;
-            case 'location':
-                DT_Components::render_location( $field_key, $fields, $post );
-                break;
-            case 'location_meta':
-                DT_Components::render_location_meta( $field_key, $fields, $post );
-                break;
-            case 'communication_channel':
-                DT_Components::render_communication_channel( $field_key, $fields, $post );
-                break;
             case 'boolean':
                 ?>
                 <dt-toggle name="<?php echo esc_attr( $field_key ); ?>" <?php echo ! empty( $post[ $field_key ] ) ? 'checked' : ''; ?>></dt-toggle>
@@ -728,7 +666,7 @@ class Disciple_Tools_Homescreen_Apps_My_Contacts_Magic_Link extends DT_Magic_Url
                 echo '<span class="detail-empty">Not editable in this view</span>';
                 break;
             default:
-                DT_Components::render_text( $field_key, $fields, $post );
+                Disciple_Tools_Magic_Links_Helper::render_field_for_display( $field_key, $fields, $post );
                 break;
         }
 
