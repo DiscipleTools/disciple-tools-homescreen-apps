@@ -307,7 +307,7 @@ const MyContactsApp = createApp({
 
         function initFieldChangeListener(section) {
             const editMode = section.querySelector('.edit-mode');
-            const component = editMode.querySelector('dt-text, dt-textarea, dt-number, dt-toggle, dt-date, dt-single-select, dt-multi-select, dt-multi-text, dt-tags, dt-connection, dt-location');
+            const component = editMode.querySelector('dt-text, dt-textarea, dt-number, dt-toggle, dt-date, dt-single-select, dt-multi-select, dt-multi-text, dt-tags, dt-connection, dt-location, dt-location-map');
 
             if (!component || component.hasAttribute('data-listener-added')) return;
 
@@ -650,6 +650,9 @@ const MyContactsApp = createApp({
                                     <div class="detail-label">Last Modified</div>
                                     <div class="detail-value">{{ selectedContact.last_modified }}</div>
                                 </div>
+                                <a :href="'/contacts/' + selectedContact.ID" target="_blank" class="dt-record-link">
+                                    <i class="mdi mdi-open-in-new"></i> Open in D.T
+                                </a>
                             </div>
                         </div>
 

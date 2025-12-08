@@ -231,6 +231,25 @@ i.field-icon {
     font-style: italic;
 }
 
+.dt-record-link {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    margin-top: 12px;
+    padding: 8px 14px;
+    background: var(--primary-color);
+    color: white;
+    text-decoration: none;
+    border-radius: 4px;
+    font-size: 13px;
+    font-weight: 500;
+    transition: background 0.2s ease;
+}
+
+.dt-record-link:hover {
+    background: #2d5a7b;
+}
+
 /* Edit mode */
 .edit-icon {
     cursor: pointer;
