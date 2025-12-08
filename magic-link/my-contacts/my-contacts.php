@@ -367,7 +367,7 @@ class Disciple_Tools_Homescreen_Apps_My_Contacts_Magic_Link extends DT_Magic_Url
         $activity = DT_Posts::get_post_activity( 'contacts', $contact_id, [], false );
 
         // Fields to skip (internal/system fields)
-        $skip_fields = [ 'corresponds_to_user', 'duplicate_data', 'duplicate_of', 'post_author', 'record_picture', 'name' ];
+        $skip_fields = [ 'corresponds_to_user', 'duplicate_data', 'duplicate_of', 'post_author', 'record_picture' ];
 
         // Group fields by tile
         $tiles_with_fields = [];

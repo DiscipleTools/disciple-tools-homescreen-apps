@@ -53,6 +53,12 @@ body {
     font-size: 14px;
 }
 
+.panel-header .header-contact-name {
+    color: var(--primary-color);
+    font-weight: 600;
+    font-size: 16px;
+}
+
 .panel-content {
     flex: 1;
     overflow-y: auto;
@@ -191,7 +197,6 @@ body {
 
 .field-icon {
     color: #aaa;
-    vertical-align: middle;
     opacity: 0.7;
 }
 
@@ -206,6 +211,7 @@ i.field-icon {
     font-size: 12px;
     width: 12px;
     text-align: center;
+    color: black;
 }
 
 .detail-value {
@@ -225,14 +231,13 @@ i.field-icon {
 /* Edit mode */
 .edit-icon {
     cursor: pointer;
-    opacity: 0.4;
     margin-left: 6px;
-    font-size: 12px;
-    transition: opacity 0.2s ease;
+    color: #666;
+    font-size: 14px;
+    transition: color 0.2s ease;
 }
 
 .edit-icon:hover {
-    opacity: 1;
     color: var(--primary-color);
 }
 

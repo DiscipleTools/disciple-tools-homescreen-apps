@@ -564,7 +564,7 @@ const MyContactsApp = createApp({
             <div class="panel" id="details-panel" :class="{ 'mobile-visible': isMobileDetailsVisible }">
                 <div class="panel-header">
                     <button class="mobile-back-btn mobile-only" @click="hideMobileDetails">&larr;</button>
-                    <span class="desktop-only">Contact Details</span>
+                    <span class="desktop-only header-contact-name">{{ selectedContact?.name || 'Contact Details' }}</span>
                     <span class="mobile-only" id="mobile-contact-name">{{ selectedContact?.name || '' }}</span>
                 </div>
                 <div class="panel-content" id="contact-details">
@@ -587,8 +587,6 @@ const MyContactsApp = createApp({
                     <!-- Contact details -->
                     <div v-else class="details-grid">
                         <div class="details-column">
-                            <h2 class="contact-name-header">{{ selectedContact.name }}</h2>
-
                             <!-- Tiles with fields -->
                             <template v-if="selectedContact.tiles && selectedContact.tiles.length > 0">
                                 <div v-for="tile in selectedContact.tiles" :key="tile.key" class="detail-tile">
@@ -600,10 +598,10 @@ const MyContactsApp = createApp({
                                          :data-contact-id="selectedContact.ID">
                                         <div class="detail-label">
                                             <span v-html="renderFieldIcon(field)"></span>{{ field.label }}
-                                            <span class="edit-icon" @click="toggleEditMode(field.key)" title="Edit">&#9998;</span>
+                                            <span class="edit-icon" @click="toggleEditMode(field.key)" title="Edit"><i class="mdi mdi-pencil"></i></span>
                                         </div>
                                         <div class="detail-value view-mode" :class="{ 'empty-value': !field.value }">
-                                            {{ field.value || '-' }}
+                                            {{ field.value || '' }}
                                         </div>
                                         <div class="edit-mode" v-html="field.component_html"></div>
                                     </div>
