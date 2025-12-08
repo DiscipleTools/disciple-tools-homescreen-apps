@@ -25,6 +25,7 @@ const MyContactsApp = createApp({
 
         // Mobile state
         const isMobileDetailsVisible = ref(false);
+        const mobileActiveTab = ref('details');
 
         // Load contacts on mount
         onMounted(() => {
@@ -500,6 +501,7 @@ const MyContactsApp = createApp({
             mentionActiveIndex,
             showMentionDropdown,
             isMobileDetailsVisible,
+            mobileActiveTab,
 
             // Methods
             loadContacts,
@@ -567,6 +569,10 @@ const MyContactsApp = createApp({
                     <span class="desktop-only header-contact-name">{{ selectedContact?.name || 'Contact Details' }}</span>
                     <span class="mobile-only" id="mobile-contact-name">{{ selectedContact?.name || '' }}</span>
                 </div>
+                <div class="mobile-tabs mobile-only" v-if="selectedContact && !selectedContact.error">
+                    <button class="mobile-tab" :class="{ active: mobileActiveTab === 'details' }" @click="mobileActiveTab = 'details'">Details</button>
+                    <button class="mobile-tab" :class="{ active: mobileActiveTab === 'comments' }" @click="mobileActiveTab = 'comments'">Comments</button>
+                </div>
                 <div class="panel-content" id="contact-details">
                     <!-- Loading state -->
                     <div v-if="detailsLoading" class="loading">
@@ -586,7 +592,7 @@ const MyContactsApp = createApp({
 
                     <!-- Contact details -->
                     <div v-else class="details-grid">
-                        <div class="details-column">
+                        <div class="details-column" :class="{ 'mobile-tab-active': mobileActiveTab === 'details' }">
                             <!-- Tiles with fields -->
                             <template v-if="selectedContact.tiles && selectedContact.tiles.length > 0">
                                 <div v-for="tile in selectedContact.tiles" :key="tile.key" class="detail-tile">
@@ -623,8 +629,8 @@ const MyContactsApp = createApp({
                             </div>
                         </div>
 
-                        <div class="details-column">
-                            <h3>Comments & Activity</h3>
+                        <div class="details-column" :class="{ 'mobile-tab-active': mobileActiveTab === 'comments' }">
+                            <h3 class="desktop-only">Comments & Activity</h3>
                             <div class="comment-input-section">
                                 <div class="comment-input-wrapper">
                                     <div class="mention-dropdown" id="mention-dropdown" :class="{ show: showMentionDropdown }">
