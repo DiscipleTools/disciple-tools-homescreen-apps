@@ -43,6 +43,7 @@ body {
     font-size: 16px;
     background: var(--card-bg);
     display: flex;
+    flex-wrap: wrap;
     align-items: center;
     gap: 8px;
 }
@@ -70,7 +71,8 @@ body {
 .search-input {
     display: block;
     width: 100%;
-    margin-top: 8px;
+    flex-basis: 100%;
+    margin-top: 4px;
     padding: 8px 12px;
     border: 1px solid var(--border-color);
     border-radius: 4px;
