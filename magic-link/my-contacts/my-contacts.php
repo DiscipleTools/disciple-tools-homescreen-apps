@@ -86,6 +86,7 @@ class Disciple_Tools_Homescreen_Apps_My_Contacts_Magic_Link extends DT_Magic_Url
         $allowed_css = [];
         $allowed_css[] = 'dt-web-components-css';
         $allowed_css[] = 'my-contacts-css';
+        $allowed_css[] = 'material-font-icons';
         return $allowed_css;
     }
 
@@ -720,7 +721,7 @@ class Disciple_Tools_Homescreen_Apps_My_Contacts_Magic_Link extends DT_Magic_Url
                             'id'    => $loc['grid_id'] ?? $loc['id'] ?? $loc['ID'] ?? '',
                             'label' => $loc['label'] ?? $loc['name'] ?? '',
                         ];
-                    }, $post[ $field_key ] ), function( $loc ) {
+                        }, $post[ $field_key ] ), function( $loc ) {
                         return $loc !== null && ! empty( $loc['id'] );
                     });
                 }
@@ -972,9 +973,6 @@ class Disciple_Tools_Homescreen_Apps_My_Contacts_Magic_Link extends DT_Magic_Url
      * Custom header styles
      */
     public function header_style() {
-        ?>
-        <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@mdi/font@6.6.96/css/materialdesignicons.min.css">
-        <?php
     }
 
     /**
