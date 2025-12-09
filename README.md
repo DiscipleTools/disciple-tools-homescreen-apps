@@ -37,6 +37,13 @@ View and manage the contacts you are coaching.
 
 ---
 
+### My Contacts
+
+View and manage contacts that are subassigned to you or assigned to your linked user account. Edit contact fields, add comments, and track activity—all from a mobile-friendly interface.
+
+
+---
+
 ### Dispatcher
 
 Assign unassigned contacts to team members using drag-and-drop.
