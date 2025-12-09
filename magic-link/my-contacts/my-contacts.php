@@ -386,6 +386,7 @@ class Disciple_Tools_Homescreen_Apps_My_Contacts_Magic_Link extends DT_Magic_Url
             // Render the component HTML using DT_Components
             $component_html = $this->render_field_component( $field_key, $field_settings, $contact, $field_type );
 
+            $non_editable_types = [ 'user_select', 'link' ];
             $field_data = [
                 'key'            => $field_key,
                 'label'          => $field_setting['name'] ?? $field_key,
@@ -395,6 +396,7 @@ class Disciple_Tools_Homescreen_Apps_My_Contacts_Magic_Link extends DT_Magic_Url
                 'font_icon'      => $field_setting['font-icon'] ?? '',
                 'order'          => is_numeric( $field_order ) ? intval( $field_order ) : 100,
                 'component_html' => $component_html,
+                'editable'       => ! in_array( $field_type, $non_editable_types, true ),
             ];
 
             $tiles_with_fields[ $tile_key ]['fields'][] = $field_data;

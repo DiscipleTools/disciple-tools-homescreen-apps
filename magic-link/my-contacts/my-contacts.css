@@ -267,7 +267,8 @@ i.field-icon {
     display: none;
 }
 
-.detail-section.editing .view-mode {
+.detail-section.editing .view-mode,
+.detail-section.editing .detail-label {
     display: none;
 }
 

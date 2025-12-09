@@ -628,7 +628,7 @@ const MyContactsApp = createApp({
                                          :data-contact-id="selectedContact.ID">
                                         <div class="detail-label">
                                             <span v-html="renderFieldIcon(field)"></span>{{ field.label }}
-                                            <span class="edit-icon" @click="toggleEditMode(field.key)" title="Edit"><i class="mdi mdi-pencil"></i></span>
+                                            <span v-if="field.editable" class="edit-icon" @click="toggleEditMode(field.key)" title="Edit"><i class="mdi mdi-pencil"></i></span>
                                         </div>
                                         <div class="detail-value view-mode" :class="{ 'empty-value': !field.value }">
                                             {{ field.value || '' }}
