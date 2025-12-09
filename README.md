@@ -41,6 +41,8 @@ View and manage the contacts you are coaching.
 
 View and manage contacts that are subassigned to you or assigned to your linked user account. Edit contact fields, add comments, and track activity—all from a mobile-friendly interface.
 
+<img width="1721" height="908" alt="image" src="https://github.com/user-attachments/assets/8b6acdad-3923-4c37-b766-335f3d5e5169" />
+
 
 ---
 
