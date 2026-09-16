@@ -653,7 +653,7 @@ class Disciple_Tools_Homescreen_Apps_My_Contacts_Magic_Link extends DT_Magic_Url
     }
 
     /**
-     * Render field component HTML using Magic Links Helper
+     * Render field component HTML using the theme's field renderer
      */
     private function render_field_component( $field_key, $fields, $post, $field_type ) {
         ob_start();
@@ -668,7 +668,10 @@ class Disciple_Tools_Homescreen_Apps_My_Contacts_Magic_Link extends DT_Magic_Url
                 echo '<span class="detail-empty">Not editable in this view</span>';
                 break;
             default:
-                Disciple_Tools_Magic_Links_Helper::render_field_for_display( $field_key, $fields, $post );
+                // Magic-link requests have no WP user, so the renderer would disable every field; access is already verified.
+                add_filter( 'dt_can_update_permission', '__return_true' );
+                render_field_for_display( $field_key, $fields, $post );
+                remove_filter( 'dt_can_update_permission', '__return_true' );
                 break;
         }
 
