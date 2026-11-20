@@ -20,6 +20,8 @@ class Disciple_Tools_Homescreen_Apps_My_Contacts_Magic_Link extends DT_Magic_Url
     public $show_app_tile = true;
     private $meta_key = '';
 
+    private const NON_EDITABLE_TYPES = [ 'user_select', 'link' ];
+
     private static $_instance = null;
 
     public $meta = [];
@@ -142,6 +144,7 @@ class Disciple_Tools_Homescreen_Apps_My_Contacts_Magic_Link extends DT_Magic_Url
             if ( ! $valid_parts ) {
                 return false;
             }
+            $valid_parts['post_id'] = (int) $valid_parts['post_id'];
             $this->parts = $valid_parts;
             return true;
         };
@@ -241,24 +244,20 @@ class Disciple_Tools_Homescreen_Apps_My_Contacts_Magic_Link extends DT_Magic_Url
         }
 
         // 2. Get contacts the corresponding user has access to
-        $corresponds_to_user = $owner_contact['corresponds_to_user'] ?? null;
-        if ( $corresponds_to_user ) {
-            $user_id = is_array( $corresponds_to_user ) ? ( $corresponds_to_user['ID'] ?? null ) : $corresponds_to_user;
+        $user_id = $this->get_owner_user_id( $owner_contact_id );
+        if ( $user_id ) {
+            // Get contacts assigned to this user
+            $user_contacts = DT_Posts::list_posts( 'contacts', [
+                'assigned_to' => [ $user_id ],
+                'sort'        => '-last_modified',
+                'limit'       => 100,
+            ], false );
 
-            if ( $user_id ) {
-                // Get contacts assigned to this user
-                $user_contacts = DT_Posts::list_posts( 'contacts', [
-                    'assigned_to' => [ $user_id ],
-                    'sort'        => '-last_modified',
-                    'limit'       => 100,
-                ], false );
-
-                if ( ! is_wp_error( $user_contacts ) && isset( $user_contacts['posts'] ) ) {
-                    foreach ( $user_contacts['posts'] as $contact ) {
-                        if ( ! in_array( $contact['ID'], $contact_ids_added ) && $contact['ID'] !== $owner_contact_id ) {
-                            $contacts[] = $this->format_contact_for_list( $contact, 'assigned' );
-                            $contact_ids_added[] = $contact['ID'];
-                        }
+            if ( ! is_wp_error( $user_contacts ) && isset( $user_contacts['posts'] ) ) {
+                foreach ( $user_contacts['posts'] as $contact ) {
+                    if ( ! in_array( $contact['ID'], $contact_ids_added ) && (int) $contact['ID'] !== $owner_contact_id ) {
+                        $contacts[] = $this->format_contact_for_list( $contact, 'assigned' );
+                        $contact_ids_added[] = $contact['ID'];
                     }
                 }
             }
@@ -341,30 +340,14 @@ class Disciple_Tools_Homescreen_Apps_My_Contacts_Magic_Link extends DT_Magic_Url
         $comments = DT_Posts::get_post_comments( 'contacts', $contact_id, false );
         $activity = DT_Posts::get_post_activity( 'contacts', $contact_id, [], false );
 
-        // Fields to skip (internal/system fields)
-        $skip_fields = [ 'corresponds_to_user', 'duplicate_data', 'duplicate_of', 'post_author', 'record_picture' ];
-
         // Group fields by tile
         $tiles_with_fields = [];
         foreach ( $field_settings as $field_key => $field_setting ) {
-            // Skip hidden, internal, or system fields
-            if ( in_array( $field_key, $skip_fields ) ) {
+            // Skip hidden, internal, or system fields, and fields without a tile
+            if ( ! $this->is_app_field( $field_key, $field_setting, $tile_settings ) ) {
                 continue;
             }
-            if ( isset( $field_setting['hidden'] ) && $field_setting['hidden'] === true ) {
-                continue;
-            }
-
-            // Skip fields without a tile
-            $tile_key = $field_setting['tile'] ?? '';
-            if ( empty( $tile_key ) ) {
-                continue;
-            }
-
-            // Skip if tile doesn't exist in tile settings
-            if ( ! isset( $tile_settings[ $tile_key ] ) ) {
-                continue;
-            }
+            $tile_key = $field_setting['tile'];
 
             $value = $contact[ $field_key ] ?? null;
             $formatted_value = $this->format_field_value( $value, $field_setting );
@@ -386,7 +369,6 @@ class Disciple_Tools_Homescreen_Apps_My_Contacts_Magic_Link extends DT_Magic_Url
             // Render the component HTML using DT_Components
             $component_html = $this->render_field_component( $field_key, $field_settings, $contact, $field_type );
 
-            $non_editable_types = [ 'user_select', 'link' ];
             $field_data = [
                 'key'            => $field_key,
                 'label'          => $field_setting['name'] ?? $field_key,
@@ -396,7 +378,7 @@ class Disciple_Tools_Homescreen_Apps_My_Contacts_Magic_Link extends DT_Magic_Url
                 'font_icon'      => $field_setting['font-icon'] ?? '',
                 'order'          => is_numeric( $field_order ) ? intval( $field_order ) : 100,
                 'component_html' => $component_html,
-                'editable'       => ! in_array( $field_type, $non_editable_types, true ),
+                'editable'       => ! in_array( $field_type, self::NON_EDITABLE_TYPES, true ),
             ];
 
             $tiles_with_fields[ $tile_key ]['fields'][] = $field_data;
@@ -435,6 +417,50 @@ class Disciple_Tools_Homescreen_Apps_My_Contacts_Magic_Link extends DT_Magic_Url
     }
 
     /**
+     * The user the link's owner contact belongs to. Only trusted when that user's own
+     * corresponds_to_contact option points back at the contact, since the contact-side meta is editable.
+     */
+    private function get_owner_user_id( $owner_contact_id ) {
+        $user_id = (int) get_post_meta( $owner_contact_id, 'corresponds_to_user', true );
+        if ( $user_id && (int) get_user_option( 'corresponds_to_contact', $user_id ) === (int) $owner_contact_id ) {
+            return $user_id;
+        }
+        return 0;
+    }
+
+    /**
+     * Whether the app shows this field: not internal or hidden, and on an existing tile.
+     */
+    private function is_app_field( $field_key, $field_setting, $tile_settings ) {
+        $skip_fields = [ 'corresponds_to_user', 'duplicate_data', 'duplicate_of', 'post_author', 'record_picture' ];
+        if ( in_array( $field_key, $skip_fields, true ) ) {
+            return false;
+        }
+        if ( isset( $field_setting['hidden'] ) && $field_setting['hidden'] === true ) {
+            return false;
+        }
+        $tile_key = $field_setting['tile'] ?? '';
+        return ! empty( $tile_key ) && isset( $tile_settings[ $tile_key ] );
+    }
+
+    private function is_editable_field( $field_key, $field_setting, $tile_settings ) {
+        return $this->is_app_field( $field_key, $field_setting, $tile_settings )
+            && ! in_array( $field_setting['type'] ?? 'text', self::NON_EDITABLE_TYPES, true );
+    }
+
+    /**
+     * New connections must be records the link's user could connect in D.T; a link without a user can't add any.
+     */
+    private function check_connection_permissions( $owner_contact_id, $contact_id, $fields ) {
+        $existing_post = DT_Posts::get_post( 'contacts', $contact_id, true, false );
+        $original_user_id = get_current_user_id();
+        wp_set_current_user( $this->get_owner_user_id( $owner_contact_id ) );
+        $result = DT_Posts::check_new_connection_permissions( DT_Posts::get_post_settings( 'contacts' ), $fields, $existing_post );
+        wp_set_current_user( $original_user_id );
+        return $result;
+    }
+
+    /**
      * Verify the owner has access to view the requested contact
      */
     private function verify_contact_access( $owner_contact_id, $contact_id ) {
@@ -458,20 +484,16 @@ class Disciple_Tools_Homescreen_Apps_My_Contacts_Magic_Link extends DT_Magic_Url
         }
 
         // Check if corresponding user has access
-        $corresponds_to_user = $owner_contact['corresponds_to_user'] ?? null;
-        if ( $corresponds_to_user ) {
-            $user_id = is_array( $corresponds_to_user ) ? ( $corresponds_to_user['ID'] ?? null ) : $corresponds_to_user;
-
-            if ( $user_id ) {
-                // Check if contact is assigned to this user
-                $contact = DT_Posts::get_post( 'contacts', $contact_id, true, false );
-                if ( ! is_wp_error( $contact ) ) {
-                    $assigned_to = $contact['assigned_to'] ?? null;
-                    if ( $assigned_to ) {
-                        $assigned_user_id = is_array( $assigned_to ) ? ( $assigned_to['id'] ?? null ) : $assigned_to;
-                        if ( intval( $assigned_user_id ) === intval( $user_id ) ) {
-                            return true;
-                        }
+        $user_id = $this->get_owner_user_id( $owner_contact_id );
+        if ( $user_id ) {
+            // Check if contact is assigned to this user
+            $contact = DT_Posts::get_post( 'contacts', $contact_id, true, false );
+            if ( ! is_wp_error( $contact ) ) {
+                $assigned_to = $contact['assigned_to'] ?? null;
+                if ( $assigned_to ) {
+                    $assigned_user_id = is_array( $assigned_to ) ? ( $assigned_to['id'] ?? null ) : $assigned_to;
+                    if ( intval( $assigned_user_id ) === intval( $user_id ) ) {
+                        return true;
                     }
                 }
             }
@@ -698,7 +720,7 @@ class Disciple_Tools_Homescreen_Apps_My_Contacts_Magic_Link extends DT_Magic_Url
             return new WP_Error( 'access_denied', 'You do not have access to this contact', [ 'status' => 403 ] );
         }
         $args = [];
-        $corresponds_to_user = Disciple_Tools_Users::get_user_for_contact( $owner_contact_id );
+        $corresponds_to_user = $this->get_owner_user_id( $owner_contact_id );
         if ( empty( $corresponds_to_user ) ) {
             $owner_contact = DT_Posts::get_post( 'contacts', $owner_contact_id, true, false );
             $args['comment_author'] = $owner_contact['name'];
@@ -729,17 +751,7 @@ class Disciple_Tools_Homescreen_Apps_My_Contacts_Magic_Link extends DT_Magic_Url
         $search = $params['search'] ?? '';
 
         // Get the corresponding user for the magic link owner
-        $owner_contact = DT_Posts::get_post( 'contacts', $owner_contact_id, true, false );
-        if ( is_wp_error( $owner_contact ) ) {
-            return [ 'users' => [] ];
-        }
-
-        $corresponds_to_user = $owner_contact['corresponds_to_user'] ?? null;
-        if ( ! $corresponds_to_user ) {
-            return [ 'users' => [] ];
-        }
-
-        $user_id = is_array( $corresponds_to_user ) ? ( $corresponds_to_user['ID'] ?? null ) : $corresponds_to_user;
+        $user_id = $this->get_owner_user_id( $owner_contact_id );
         if ( ! $user_id ) {
             return [ 'users' => [] ];
         }
@@ -786,10 +798,19 @@ class Disciple_Tools_Homescreen_Apps_My_Contacts_Magic_Link extends DT_Magic_Url
         // Get field settings
         $field_settings = DT_Posts::get_post_field_settings( 'contacts' );
         $field_setting = $field_settings[ $field_key ] ?? [];
+        if ( empty( $field_setting ) || ! $this->is_editable_field( $field_key, $field_setting, DT_Posts::get_post_tiles( 'contacts' ) ) ) {
+            return new WP_Error( 'field_not_editable', 'This field cannot be edited', [ 'status' => 403 ] );
+        }
 
         // The JS uses ComponentService.convertValue() to format the value correctly for DT_Posts
         // so we can pass it directly without transformation
         $update_data = [ $field_key => $field_value ];
+
+        $connection_check = $this->check_connection_permissions( $owner_contact_id, $contact_id, $update_data );
+        if ( is_wp_error( $connection_check ) ) {
+            return $connection_check;
+        }
+
         $result = DT_Posts::update_post( 'contacts', $contact_id, $update_data, true, false );
 
         if ( is_wp_error( $result ) ) {
