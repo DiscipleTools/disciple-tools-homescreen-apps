@@ -96,12 +96,12 @@ class Disciple_Tools_Homescreen_Apps_My_Contacts_Magic_Link extends DT_Magic_Url
      * Enqueue scripts and styles
      */
     public function wp_enqueue_scripts() {
-        // Enqueue Vue.js from CDN
+        // Enqueue the bundled, pinned Vue.js build
         wp_enqueue_script(
             'vue-js',
-            'https://unpkg.com/vue@3/dist/vue.global.prod.js',
+            trailingslashit( plugin_dir_url( __FILE__ ) ) . 'vue.global.prod.js',
             [],
-            '3',
+            '3.5.45',
             true
         );
 
