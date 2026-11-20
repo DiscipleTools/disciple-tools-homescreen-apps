@@ -464,7 +464,8 @@ const MyContactsApp = createApp({
         function formatActivityContent(text) {
             if (!text) return '';
 
-            let formatted = escapeHtml(text);
+            // Quotes must be escaped too, or the link built below can gain attributes
+            let formatted = escapeAttr(text);
 
             formatted = formatted.replace(
                 /@\[([^\]]+)\]\((\d+)\)/g,

@@ -2207,8 +2207,8 @@ class Disciple_Tools_Homescreen_Apps_Dispatcher_Magic_Link extends DT_Magic_Url_
             function formatComment(text) {
                 if (!text) return '';
 
-                // Decode HTML entities first, then escape to prevent XSS
-                let formatted = text; // escapeHtml(decodeHtmlEntities(text));
+                // Escape markup and quotes so the links built below can't gain attributes; stored entities render once
+                let formatted = String(text).replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;');
 
                 // Format @mentions: @[Name](id) -> styled span
                 formatted = formatted.replace(
