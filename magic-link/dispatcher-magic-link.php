@@ -61,6 +61,10 @@ class Disciple_Tools_Homescreen_Apps_Dispatcher_Magic_Link extends DT_Magic_Url_
             exit;
         }
 
+        if ( ! $this->can_dispatch() ) {
+            wp_die( esc_html__( 'You do not have permission to view this page.', 'disciple-tools-homescreen-apps' ), '', [ 'response' => 403 ] );
+        }
+
         add_action( 'dt_blank_body', [ $this, 'body' ] );
         add_filter( 'dt_magic_url_base_allowed_css', [ $this, 'dt_magic_url_base_allowed_css' ], 10, 1 );
         add_filter( 'dt_magic_url_base_allowed_js', [ $this, 'dt_magic_url_base_allowed_js' ], 10, 1 );
@@ -75,6 +79,13 @@ class Disciple_Tools_Homescreen_Apps_Dispatcher_Magic_Link extends DT_Magic_Url_
             'settings_display' => true
         ];
         return $apps_list;
+    }
+
+    /**
+     * Same capabilities the theme's own dispatch list requires.
+     */
+    private function can_dispatch() {
+        return current_user_can( 'dt_all_access_contacts' ) && current_user_can( 'list_users' );
     }
 
     public function dt_magic_url_base_allowed_js( $allowed_js ) {
@@ -93,7 +104,7 @@ class Disciple_Tools_Homescreen_Apps_Dispatcher_Magic_Link extends DT_Magic_Url_
         $namespace = $this->root . '/v1';
 
         $permission_callback = function () {
-            return is_user_logged_in();
+            return $this->can_dispatch();
         };
 
         register_rest_route(
@@ -729,15 +740,18 @@ class Disciple_Tools_Homescreen_Apps_Dispatcher_Magic_Link extends DT_Magic_Url_
 
         $search = $params['search'] ?? '';
 
-        global $wpdb;
+        $assignable_users = Disciple_Tools_Users::get_assignable_users_compact( $search );
+        if ( is_wp_error( $assignable_users ) ) {
+            return [ 'users' => [] ];
+        }
 
-        $users = $wpdb->get_results( $wpdb->prepare( "
-            SELECT ID, display_name
-            FROM $wpdb->users
-            WHERE display_name LIKE %s
-            ORDER BY display_name
-            LIMIT 10
-        ", '%' . $wpdb->esc_like( $search ) . '%' ), ARRAY_A );
+        $users = [];
+        foreach ( array_slice( $assignable_users, 0, 10 ) as $user ) {
+            $users[] = [
+                'ID'           => $user['ID'],
+                'display_name' => $user['name'],
+            ];
+        }
 
         return [
             'users' => $users,
