@@ -26,7 +26,7 @@ jobs:
       - name: Build project
         run: |
           mkdir disciple-tools-homescreen-apps
-          cp -r disciple-tools-homescreen-apps.php admin languages spinner.svg version-control.json LICENSE SECURITY.md disciple-tools-homescreen-apps/
+          cp -r disciple-tools-homescreen-apps.php admin assets magic-link languages spinner.svg version-control.json LICENSE SECURITY.md disciple-tools-homescreen-apps/
           zip -r disciple-tools-homescreen-apps.zip disciple-tools-homescreen-apps
       - name: Create Release
         env:
